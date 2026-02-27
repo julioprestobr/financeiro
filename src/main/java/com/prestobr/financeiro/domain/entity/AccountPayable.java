@@ -1,25 +1,18 @@
 package com.prestobr.financeiro.domain.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
-@Entity
-@Table(name = "accounts_payable")
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class AccountPayable {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column()
     private String description;
-
-    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
 }
