@@ -34,7 +34,7 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
 
-        // 🔹 Permite requisições CORS preflight
+        // 🔹 IMPORTANTE — permitir preflight CORS
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             filterChain.doFilter(request, response);
             return;
@@ -46,6 +46,7 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
         }
 
         String secret = request.getHeader(GATEWAY_SECRET_HEADER);
+
         if (!isValidGatewaySecret(secret)) {
             log.warn("Requisição rejeitada - Gateway secret inválido ou ausente. Path: {}", path);
             sendUnauthorizedResponse(response);
@@ -76,23 +77,25 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
         String roles = request.getHeader(USER_ROLES_HEADER);
 
         if (userId != null) {
+
             List<SimpleGrantedAuthority> authorities = parseRoles(roles);
 
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(userId, null, authorities);
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-
-            log.debug("Usuário autenticado via Gateway: userId={}, roles={}", userId, roles);
         }
     }
 
     private List<SimpleGrantedAuthority> parseRoles(String roles) {
+
         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
 
         if (roles != null && !roles.isEmpty()) {
             for (String role : roles.split(",")) {
+
                 String trimmedRole = role.trim();
+
                 if (!trimmedRole.isEmpty()) {
                     authorities.add(new SimpleGrantedAuthority("ROLE_" + trimmedRole));
                 }
@@ -103,8 +106,10 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
     }
 
     private void sendUnauthorizedResponse(HttpServletResponse response) throws IOException {
+
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
+
         response.getWriter().write(
                 "{\"error\": \"Unauthorized\", \"message\": \"Invalid or missing gateway authentication\"}"
         );
