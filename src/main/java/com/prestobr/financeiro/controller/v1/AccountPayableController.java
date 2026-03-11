@@ -56,7 +56,7 @@ public class AccountPayableController {
         }
         return ResponseEntity.ok(accounts);
     }
-    git remote -v
+
     @GetMapping("/pendentes")
     @Operation(summary = "Lista todas as contas a pagar pendentes (não pagas totalmente)")
     public ResponseEntity<List<AccountPayable>> getPendentes() {
