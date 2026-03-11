@@ -10,6 +10,10 @@ import org.apache.parquet.avro.AvroParquetReader;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -17,8 +21,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Object;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.io.File;
 import java.math.BigDecimal;
@@ -45,38 +47,39 @@ public class AccountPayableService {
     private String silverPrefix;
 
     public Page<AccountPayable> getLatestAccountsPayable(Pageable pageable) {
-        List<AccountPayable> all = getLatestAccountsPayable();
+        List<AccountPayable> all = loadAllAccountsPayable();
         return toPage(all, pageable);
     }
 
     public Optional<AccountPayable> getByCodigoTitulo(String codigoTitulo) {
-        return getLatestAccountsPayable().stream()
+        return loadAllAccountsPayable().stream()
                 .filter(ap -> codigoTitulo.equals(ap.getCodigoTitulo()))
                 .findFirst();
     }
 
     public Page<AccountPayable> getByFornecedor(String codFornecedor, Pageable pageable) {
-        List<AccountPayable> filtered = getLatestAccountsPayable().stream()
+        List<AccountPayable> filtered = loadAllAccountsPayable().stream()
                 .filter(ap -> codFornecedor.equals(ap.getCodFornecedor()))
                 .collect(Collectors.toList());
         return toPage(filtered, pageable);
     }
 
     public Page<AccountPayable> getByDocumentoContribuinte(String documento, Pageable pageable) {
-        List<AccountPayable> filtered = getLatestAccountsPayable().stream()
+        List<AccountPayable> filtered = loadAllAccountsPayable().stream()
                 .filter(ap -> documento.equals(ap.getDocumentoContribuinte()))
                 .collect(Collectors.toList());
         return toPage(filtered, pageable);
     }
 
     public Page<AccountPayable> getPendentes(Pageable pageable) {
-        List<AccountPayable> filtered = getLatestAccountsPayable().stream()
+        List<AccountPayable> filtered = loadAllAccountsPayable().stream()
                 .filter(ap -> !Boolean.TRUE.equals(ap.getIsPagoTotal()))
                 .collect(Collectors.toList());
         return toPage(filtered, pageable);
     }
 
-    private List<AccountPayable> getLatestAccountsPayable() {
+    @Cacheable("accounts-payable")
+    public List<AccountPayable> loadAllAccountsPayable() {
         List<String> latestRunKeys = findLatestRunParquetKeys();
 
         if (latestRunKeys.isEmpty()) {
@@ -94,13 +97,6 @@ public class AccountPayableService {
         return allAccounts;
     }
 
-    /**
-     * Encontra as chaves dos arquivos Parquet da run mais recente.
-     *
-     * Estrutura esperada:
-     * silver/financeiro/contas_a_pagar/system=databit/build_type=full/year=YYYY/month=MM/day=DD/
-     *   contas_a_pagar_silver_YYYYMMDD_HHMMSS_run-YYYYMMDD_HHMMSS_part-XXXX.parquet
-     */
     private List<String> findLatestRunParquetKeys() {
         ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
                 .bucket(bucketName)
@@ -129,8 +125,6 @@ public class AccountPayableService {
             return Collections.emptyList();
         }
 
-        // Agrupa por "run" extraindo o identificador da run do nome do arquivo
-        // Padrão: contas_a_pagar_silver_YYYYMMDD_HHMMSS_run-YYYYMMDD_HHMMSS_part-XXXX.parquet
         Pattern runPattern = Pattern.compile("run-(\\d{8}_\\d{6})");
 
         Map<String, List<S3Object>> filesByRun = parquetFiles.stream()
@@ -142,7 +136,6 @@ public class AccountPayableService {
         filesByRun.remove("unknown");
 
         if (filesByRun.isEmpty()) {
-            // Fallback: pega os arquivos mais recentes por lastModified
             return parquetFiles.stream()
                     .sorted(Comparator.comparing(S3Object::lastModified).reversed())
                     .limit(10)
@@ -150,7 +143,6 @@ public class AccountPayableService {
                     .collect(Collectors.toList());
         }
 
-        // Encontra a run mais recente (maior valor = mais recente)
         String latestRun = filesByRun.keySet().stream()
                 .max(Comparator.naturalOrder())
                 .orElseThrow();
@@ -162,9 +154,6 @@ public class AccountPayableService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Lê um arquivo Parquet do S3 e converte para lista de AccountPayable.
-     */
     private List<AccountPayable> readParquetFile(String s3Key) {
         List<AccountPayable> accounts = new ArrayList<>();
         File tempFile = null;
@@ -207,17 +196,10 @@ public class AccountPayableService {
         return accounts;
     }
 
-    /**
-     * Mapeia um registro Avro/Parquet para AccountPayable.
-     * Os nomes dos campos seguem o schema do silver (snake_case).
-     */
     private AccountPayable mapToAccountPayable(GenericRecord record) {
         return AccountPayable.builder()
-                // Identificação
                 .codigoTitulo(getString(record, "codigo_titulo"))
                 .codigoCompra(getString(record, "codigo_compra"))
-
-                // Vínculos
                 .codEmpresa(getString(record, "cod_empresa"))
                 .codFornecedor(getString(record, "cod_fornecedor"))
                 .codCentroCusto(getString(record, "cod_centro_custo"))
@@ -226,31 +208,21 @@ public class AccountPayableService {
                 .planoConta(getString(record, "plano_conta"))
                 .contrato(getString(record, "contrato"))
                 .prestador(getString(record, "prestador"))
-
-                // Datas
                 .dataEmissao(getLocalDateTime(record, "data_emissao"))
                 .dataVencimento(getLocalDateTime(record, "data_vencimento"))
                 .dataEntrada(getLocalDateTime(record, "data_entrada"))
                 .dataCadastro(getLocalDateTime(record, "data_cadastro"))
                 .dataAlteracao(getLocalDateTime(record, "data_alteracao"))
-
-                // Texto / Histórico
                 .historico(getString(record, "historico"))
                 .observacao(getString(record, "observacao"))
-
-                // Classificação
                 .tipoDocumento(getString(record, "tipo_documento"))
                 .tipoTitulo(getString(record, "tipo_titulo"))
                 .operacao(getString(record, "operacao"))
                 .formaPagamento(getString(record, "forma_pagamento"))
                 .opcaoPagamento(getString(record, "opcao_pagamento"))
-
-                // Status
                 .situacaoTitulo(getString(record, "situacao_titulo"))
                 .statusPagamento(getString(record, "status_pagamento"))
                 .isProvisao(getBoolean(record, "is_provisao"))
-
-                // Valores
                 .valorTitulo(getBigDecimal(record, "valor_titulo"))
                 .valorPago(getBigDecimal(record, "valor_pago"))
                 .valorSaldo(getBigDecimal(record, "valor_saldo"))
@@ -260,8 +232,6 @@ public class AccountPayableService {
                 .valorMovimento(getBigDecimal(record, "valor_movimento"))
                 .valorOutras(getBigDecimal(record, "valor_outras"))
                 .atualizacaoMonetaria(getBigDecimal(record, "atualizacao_monetaria"))
-
-                // Parcela / Competência
                 .numeroParcela(getString(record, "numero_parcela"))
                 .mesCompetencia(getString(record, "mes_competencia"))
                 .periodo(getString(record, "periodo"))
@@ -269,26 +239,17 @@ public class AccountPayableService {
                 .periodoReferencia(getString(record, "periodo_referencia"))
                 .anoCalculo(getInteger(record, "ano_calculo"))
                 .diasAtraso(getInteger(record, "dias_atraso"))
-
-                // Fiscal
                 .documentoContribuinte(getString(record, "documento_contribuinte"))
                 .inscricaoEstadual(getString(record, "inscricao_estadual"))
                 .codMunicipio(getString(record, "cod_municipio"))
                 .uf(getString(record, "uf"))
-
-                // Auditoria
                 .contadorPagamento(getInteger(record, "contador_pagamento"))
                 .operadorCadastro(getString(record, "operador_cadastro"))
                 .operadorAlteracao(getString(record, "operador_alteracao"))
-
-                // Metadados
                 .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
                 .isPagoTotal(getBoolean(record, "is_pago_total"))
-
                 .build();
     }
-
-    // ==================== Helpers para extração segura de valores ====================
 
     private String getString(GenericRecord record, String field) {
         try {
@@ -329,7 +290,6 @@ public class AccountPayableService {
             Object value = record.get(field);
             if (value == null) return null;
             if (value instanceof BigDecimal) return (BigDecimal) value;
-            // Parquet pode armazenar decimals como bytes ou strings
             return new BigDecimal(value.toString());
         } catch (Exception e) {
             return null;
@@ -353,15 +313,12 @@ public class AccountPayableService {
             Object value = record.get(field);
             if (value == null) return null;
 
-            // Parquet armazena timestamps como microssegundos desde epoch
             if (value instanceof Long) {
                 long micros = (Long) value;
-                // Converte microssegundos para milissegundos
                 long millis = micros / 1000;
                 return LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
             }
 
-            // Se for string ISO
             if (value instanceof CharSequence) {
                 return LocalDateTime.parse(value.toString());
             }
@@ -377,10 +334,8 @@ public class AccountPayableService {
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), list.size());
         if (start > list.size()) {
-            return new org.springframework.data.domain.PageImpl<>(
-                    Collections.emptyList(), pageable, list.size());
+            return new PageImpl<>(Collections.emptyList(), pageable, list.size());
         }
-        return new org.springframework.data.domain.PageImpl<>(
-                list.subList(start, end), pageable, list.size());
+        return new PageImpl<>(list.subList(start, end), pageable, list.size());
     }
 }
