@@ -1,7 +1,6 @@
 package com.prestobr.financeiro.service;
 
 import com.prestobr.financeiro.domain.entity.AccountPayable;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
@@ -11,6 +10,7 @@ import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -35,10 +35,10 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AccountPayableService {
 
     private final S3Client s3Client;
+    private final ApplicationContext applicationContext;
 
     @Value("${datalake.bucket}")
     private String bucketName;
@@ -46,33 +46,42 @@ public class AccountPayableService {
     @Value("${datalake.silver-account-payable-base-prefix}")
     private String silverPrefix;
 
+    public AccountPayableService(S3Client s3Client, ApplicationContext applicationContext) {
+        this.s3Client = s3Client;
+        this.applicationContext = applicationContext;
+    }
+
+    private AccountPayableService self() {
+        return applicationContext.getBean(AccountPayableService.class);
+    }
+
     public Page<AccountPayable> getLatestAccountsPayable(Pageable pageable) {
-        List<AccountPayable> all = loadAllAccountsPayable();
+        List<AccountPayable> all = self().loadAllAccountsPayable();
         return toPage(all, pageable);
     }
 
     public Optional<AccountPayable> getByCodigoTitulo(String codigoTitulo) {
-        return loadAllAccountsPayable().stream()
+        return self().loadAllAccountsPayable().stream()
                 .filter(ap -> codigoTitulo.equals(ap.getCodigoTitulo()))
                 .findFirst();
     }
 
     public Page<AccountPayable> getByFornecedor(String codFornecedor, Pageable pageable) {
-        List<AccountPayable> filtered = loadAllAccountsPayable().stream()
+        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
                 .filter(ap -> codFornecedor.equals(ap.getCodFornecedor()))
                 .collect(Collectors.toList());
         return toPage(filtered, pageable);
     }
 
     public Page<AccountPayable> getByDocumentoContribuinte(String documento, Pageable pageable) {
-        List<AccountPayable> filtered = loadAllAccountsPayable().stream()
+        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
                 .filter(ap -> documento.equals(ap.getDocumentoContribuinte()))
                 .collect(Collectors.toList());
         return toPage(filtered, pageable);
     }
 
     public Page<AccountPayable> getPendentes(Pageable pageable) {
-        List<AccountPayable> filtered = loadAllAccountsPayable().stream()
+        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
                 .filter(ap -> !Boolean.TRUE.equals(ap.getIsPagoTotal()))
                 .collect(Collectors.toList());
         return toPage(filtered, pageable);
