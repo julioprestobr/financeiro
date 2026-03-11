@@ -29,7 +29,9 @@ public class AccountPayableController {
     @GetMapping("/title/{titleCode}")
     @Operation(summary = "Busca uma conta a pagar pelo código do título")
     public ResponseEntity<AccountPayable> getByCodigoTitulo(
-            @Parameter(description = "Código do título") @PathVariable String codigoTitulo) {
+            @Parameter(description = "Código do título")
+            @PathVariable("titleCode") String codigoTitulo) {
+
         return accountPayableService.getByCodigoTitulo(codigoTitulo)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -38,22 +40,30 @@ public class AccountPayableController {
     @GetMapping("/vendor/{vendorCode}")
     @Operation(summary = "Busca contas a pagar pelo código do fornecedor")
     public ResponseEntity<List<AccountPayable>> getByFornecedor(
-            @Parameter(description = "Código do fornecedor") @PathVariable String codFornecedor) {
+            @Parameter(description = "Código do fornecedor")
+            @PathVariable("vendorCode") String codFornecedor) {
+
         List<AccountPayable> accounts = accountPayableService.getByFornecedor(codFornecedor);
+
         if (accounts.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
+
         return ResponseEntity.ok(accounts);
     }
 
     @GetMapping("/document/{document}")
     @Operation(summary = "Busca contas a pagar pelo documento do contribuinte (CPF/CNPJ)")
     public ResponseEntity<List<AccountPayable>> getByDocumentoContribuinte(
-            @Parameter(description = "CPF ou CNPJ do contribuinte") @PathVariable String documento) {
+            @Parameter(description = "CPF ou CNPJ do contribuinte")
+            @PathVariable("document") String documento) {
+
         List<AccountPayable> accounts = accountPayableService.getByDocumentoContribuinte(documento);
+
         if (accounts.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
+
         return ResponseEntity.ok(accounts);
     }
 
