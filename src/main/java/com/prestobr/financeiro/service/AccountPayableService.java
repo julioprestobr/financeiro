@@ -17,6 +17,8 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Object;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.io.File;
 import java.math.BigDecimal;
@@ -42,10 +44,39 @@ public class AccountPayableService {
     @Value("${datalake.silver-account-payable-base-prefix}")
     private String silverPrefix;
 
-    /**
-     * Busca todas as contas a pagar da run mais recente do Data Lake Silver.
-     */
-    public List<AccountPayable> getLatestAccountsPayable() {
+    public Page<AccountPayable> getLatestAccountsPayable(Pageable pageable) {
+        List<AccountPayable> all = getLatestAccountsPayable();
+        return toPage(all, pageable);
+    }
+
+    public Optional<AccountPayable> getByCodigoTitulo(String codigoTitulo) {
+        return getLatestAccountsPayable().stream()
+                .filter(ap -> codigoTitulo.equals(ap.getCodigoTitulo()))
+                .findFirst();
+    }
+
+    public Page<AccountPayable> getByFornecedor(String codFornecedor, Pageable pageable) {
+        List<AccountPayable> filtered = getLatestAccountsPayable().stream()
+                .filter(ap -> codFornecedor.equals(ap.getCodFornecedor()))
+                .collect(Collectors.toList());
+        return toPage(filtered, pageable);
+    }
+
+    public Page<AccountPayable> getByDocumentoContribuinte(String documento, Pageable pageable) {
+        List<AccountPayable> filtered = getLatestAccountsPayable().stream()
+                .filter(ap -> documento.equals(ap.getDocumentoContribuinte()))
+                .collect(Collectors.toList());
+        return toPage(filtered, pageable);
+    }
+
+    public Page<AccountPayable> getPendentes(Pageable pageable) {
+        List<AccountPayable> filtered = getLatestAccountsPayable().stream()
+                .filter(ap -> !Boolean.TRUE.equals(ap.getIsPagoTotal()))
+                .collect(Collectors.toList());
+        return toPage(filtered, pageable);
+    }
+
+    private List<AccountPayable> getLatestAccountsPayable() {
         List<String> latestRunKeys = findLatestRunParquetKeys();
 
         if (latestRunKeys.isEmpty()) {
@@ -61,42 +92,6 @@ public class AccountPayableService {
         }
 
         return allAccounts;
-    }
-
-    /**
-     * Busca uma conta a pagar específica por código do título.
-     */
-    public Optional<AccountPayable> getByCodigoTitulo(String codigoTitulo) {
-        return getLatestAccountsPayable().stream()
-                .filter(ap -> codigoTitulo.equals(ap.getCodigoTitulo()))
-                .findFirst();
-    }
-
-    /**
-     * Busca contas a pagar por código do fornecedor.
-     */
-    public List<AccountPayable> getByFornecedor(String codFornecedor) {
-        return getLatestAccountsPayable().stream()
-                .filter(ap -> codFornecedor.equals(ap.getCodFornecedor()))
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Busca contas a pagar por documento do contribuinte (CPF/CNPJ).
-     */
-    public List<AccountPayable> getByDocumentoContribuinte(String documento) {
-        return getLatestAccountsPayable().stream()
-                .filter(ap -> documento.equals(ap.getDocumentoContribuinte()))
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Busca contas a pagar pendentes (não pagas totalmente).
-     */
-    public List<AccountPayable> getPendentes() {
-        return getLatestAccountsPayable().stream()
-                .filter(ap -> !Boolean.TRUE.equals(ap.getIsPagoTotal()))
-                .collect(Collectors.toList());
     }
 
     /**
@@ -376,5 +371,16 @@ public class AccountPayableService {
             log.trace("Erro ao converter campo {} para LocalDateTime: {}", field, e.getMessage());
             return null;
         }
+    }
+
+    private Page<AccountPayable> toPage(List<AccountPayable> list, Pageable pageable) {
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), list.size());
+        if (start > list.size()) {
+            return new org.springframework.data.domain.PageImpl<>(
+                    Collections.emptyList(), pageable, list.size());
+        }
+        return new org.springframework.data.domain.PageImpl<>(
+                list.subList(start, end), pageable, list.size());
     }
 }
