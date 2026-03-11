@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/accounts-payable")
+@RequestMapping("/v1/accounts-payable")
 @RequiredArgsConstructor
 @Tag(name = "Contas a Pagar", description = "Consulta de contas a pagar do Data Lake Silver")
 public class AccountPayableController {
