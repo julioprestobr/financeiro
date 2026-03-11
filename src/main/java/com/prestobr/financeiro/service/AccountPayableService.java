@@ -39,7 +39,7 @@ public class AccountPayableService {
     @Value("${datalake.bucket}")
     private String bucketName;
 
-    @Value("${datalake.silver.contas-a-pagar.prefix}")
+    @Value("${datalake.silver-account-payable-base-prefix}")
     private String silverPrefix;
 
     /**
