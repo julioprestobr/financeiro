@@ -177,6 +177,7 @@ public class AccountPayableService {
         try {
             tempFile = Files.createTempFile("parquet_", ".parquet").toFile();
             tempFile.deleteOnExit();
+            tempFile.delete();
 
             GetObjectRequest getRequest = GetObjectRequest.builder()
                     .bucket(bucketName)
