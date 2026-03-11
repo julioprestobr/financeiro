@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/contas-a-pagar")
+@RequestMapping("/api/v1/accounts-payable")
 @RequiredArgsConstructor
 @Tag(name = "Contas a Pagar", description = "Consulta de contas a pagar do Data Lake Silver")
 public class AccountPayableController {
@@ -26,7 +26,7 @@ public class AccountPayableController {
         return ResponseEntity.ok(accounts);
     }
 
-    @GetMapping("/titulo/{codigoTitulo}")
+    @GetMapping("/title/{titleCode}")
     @Operation(summary = "Busca uma conta a pagar pelo código do título")
     public ResponseEntity<AccountPayable> getByCodigoTitulo(
             @Parameter(description = "Código do título") @PathVariable String codigoTitulo) {
@@ -35,7 +35,7 @@ public class AccountPayableController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/fornecedor/{codFornecedor}")
+    @GetMapping("/vendor/{vendorCode}")
     @Operation(summary = "Busca contas a pagar pelo código do fornecedor")
     public ResponseEntity<List<AccountPayable>> getByFornecedor(
             @Parameter(description = "Código do fornecedor") @PathVariable String codFornecedor) {
@@ -46,7 +46,7 @@ public class AccountPayableController {
         return ResponseEntity.ok(accounts);
     }
 
-    @GetMapping("/documento/{documento}")
+    @GetMapping("/document/{document}")
     @Operation(summary = "Busca contas a pagar pelo documento do contribuinte (CPF/CNPJ)")
     public ResponseEntity<List<AccountPayable>> getByDocumentoContribuinte(
             @Parameter(description = "CPF ou CNPJ do contribuinte") @PathVariable String documento) {
@@ -57,7 +57,7 @@ public class AccountPayableController {
         return ResponseEntity.ok(accounts);
     }
 
-    @GetMapping("/pendentes")
+    @GetMapping("/pending")
     @Operation(summary = "Lista todas as contas a pagar pendentes (não pagas totalmente)")
     public ResponseEntity<List<AccountPayable>> getPendentes() {
         List<AccountPayable> accounts = accountPayableService.getPendentes();
