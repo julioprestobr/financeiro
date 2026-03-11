@@ -123,6 +123,9 @@ public class AccountPayableService {
                     .build();
         } while (response.isTruncated());
 
+        log.info("Objetos encontrados no prefix '{}': {}", silverPrefix, allObjects.size());
+        allObjects.forEach(obj -> log.info("  -> {}", obj.key()));
+
         List<S3Object> parquetFiles = allObjects.stream()
                 .filter(obj -> obj.key().endsWith(".parquet"))
                 .collect(Collectors.toList());
