@@ -1,10 +1,12 @@
 package com.prestobr.financeiro.controller.v1;
 
 import com.prestobr.financeiro.domain.entity.AccountPayable;
+import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.service.AccountPayableService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -68,8 +70,12 @@ public class AccountPayableController {
 
     @GetMapping("/pending")
     @Operation(summary = "Lista todas as contas a pagar pendentes (não pagas totalmente)")
-    public ResponseEntity<Page<AccountPayable>> getPendentes(
+//    public ResponseEntity<Page<AccountPayable>> getPendentes(
+//            @PageableDefault(size = 50) Pageable pageable) {
+//        return ResponseEntity.ok(accountPayableService.getPendentes(pageable));
+//    }
+    public PageResponse<AccountPayable> getPendentes(
             @PageableDefault(size = 50) Pageable pageable) {
-        return ResponseEntity.ok(accountPayableService.getPendentes(pageable));
+        return accountPayableService.getPendentes(pageable);
     }
 }

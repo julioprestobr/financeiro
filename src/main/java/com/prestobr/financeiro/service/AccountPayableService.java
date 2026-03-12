@@ -2,6 +2,8 @@ package com.prestobr.financeiro.service;
 
 import com.prestobr.financeiro.domain.entity.AccountPayable;
 import com.prestobr.financeiro.domain.util.AccountPayableAnonymizer;
+import com.prestobr.financeiro.dto.response.PageResponse;
+import com.prestobr.financeiro.dto.response.Pagination;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
@@ -81,11 +83,22 @@ public class AccountPayableService {
         return toPage(filtered, pageable);
     }
 
-    public Page<AccountPayable> getPendentes(Pageable pageable) {
+    public PageResponse<AccountPayable> getPendentes(Pageable pageable) {
         List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
                 .filter(ap -> !Boolean.TRUE.equals(ap.getIsPagoTotal()))
                 .collect(Collectors.toList());
-        return toPage(filtered, pageable);
+
+        Page<AccountPayable> page = toPage(filtered, pageable);
+
+        return new PageResponse<>(
+                new Pagination(
+                        page.getNumber(),
+                        page.getSize(),
+                        page.getTotalElements(),
+                        page.getTotalPages()
+                ),
+                page.getContent()
+        );
     }
 
     @Cacheable("accounts-payable")
