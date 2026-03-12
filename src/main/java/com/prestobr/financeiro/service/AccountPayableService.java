@@ -17,7 +17,9 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -58,47 +60,33 @@ public class AccountPayableService {
         return applicationContext.getBean(AccountPayableService.class);
     }
 
-    public Page<AccountPayable> getLatestAccountsPayable(Pageable pageable) {
+    public PageResponse<AccountPayable> getLatestAccountsPayable(Pageable pageable) {
         List<AccountPayable> all = self().loadAllAccountsPayable();
-        return toPage(all, pageable);
+        return toPageResponse(toPage(all, pageable));
     }
 
-    public Optional<AccountPayable> getByCodigoTitulo(String codigoTitulo) {
+    public AccountPayable getByCodigoTitulo(String codigoTitulo) {
         return self().loadAllAccountsPayable().stream()
                 .filter(ap -> codigoTitulo.equals(ap.getCodigoTitulo()))
-                .findFirst();
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Título não encontrado: " + codigoTitulo
+                ));
     }
 
-    public Page<AccountPayable> getByFornecedor(String codFornecedor, Pageable pageable) {
+    public PageResponse<AccountPayable> getByFornecedor(String codFornecedor, Pageable pageable) {
         List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
                 .filter(ap -> codFornecedor.equals(ap.getCodFornecedor()))
                 .collect(Collectors.toList());
-        return toPage(filtered, pageable);
-    }
-
-    public Page<AccountPayable> getByDocumentoContribuinte(String documento, Pageable pageable) {
-        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
-                .filter(ap -> documento.equals(ap.getDocumentoContribuinte()))
-                .collect(Collectors.toList());
-        return toPage(filtered, pageable);
-    }
+        return toPageResponse(toPage(filtered, pageable));    }
 
     public PageResponse<AccountPayable> getPendentes(Pageable pageable) {
         List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
                 .filter(ap -> !Boolean.TRUE.equals(ap.getIsPagoTotal()))
                 .collect(Collectors.toList());
 
-        Page<AccountPayable> page = toPage(filtered, pageable);
-
-        return new PageResponse<>(
-                new Pagination(
-                        page.getNumber(),
-                        page.getSize(),
-                        page.getTotalElements(),
-                        page.getTotalPages()
-                ),
-                page.getContent()
-        );
+        return toPageResponse(toPage(filtered, pageable));
     }
 
     @Cacheable("accounts-payable")
@@ -361,5 +349,17 @@ public class AccountPayableService {
             return new PageImpl<>(Collections.emptyList(), pageable, list.size());
         }
         return new PageImpl<>(list.subList(start, end), pageable, list.size());
+    }
+
+    private PageResponse<AccountPayable> toPageResponse(Page<AccountPayable> page) {
+        return new PageResponse<>(
+                new Pagination(
+                        page.getNumber(),
+                        page.getSize(),
+                        page.getTotalElements(),
+                        page.getTotalPages()
+                ),
+                page.getContent()
+        );
     }
 }
