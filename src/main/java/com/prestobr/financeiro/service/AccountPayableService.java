@@ -383,7 +383,16 @@ public class AccountPayableService {
     }
 
     private Page<AccountPayable> toPage(List<AccountPayable> list, Pageable pageable) {
+        log.info("=== DEBUG SORT ===");
+        log.info("Sort recebido: {}", pageable.getSort());
+        log.info("Sort is unsorted: {}", pageable.getSort().isUnsorted());
+
         List<AccountPayable> sorted = applySorting(list, pageable.getSort());
+
+        if (!sorted.isEmpty()) {
+            log.info("Primeiro item dataEmissao: {}", sorted.get(0).getDataEmissao());
+            log.info("Último item dataEmissao: {}", sorted.get(sorted.size() - 1).getDataEmissao());
+        }
 
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), sorted.size());
