@@ -8,7 +8,7 @@ import java.util.List;
 public record PageableRequest(
         @Min(0) Integer page,
         @Min(1) @Max(100) Integer size,
-        @Schema(hidden = true) List<String> sort
+        List<String> sort
 ) {
     public PageableRequest {
         if (page == null) page = 0;
