@@ -24,6 +24,11 @@ public class AccountPayableController {
 
     @GetMapping
     @Operation(summary = "Lista todas as contas a pagar da run mais recente do Data Lake Silver")
+    @Parameter(
+            name = "sort",
+            description = "Campos disponíveis para ordenação: dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Formas de ordenação: asc, desc",
+            example = "dataVencimento,desc"
+    )
     public PageResponse<AccountPayable> getAll(
             @PageableDefault(size = 50) Pageable pageable) {
         return accountPayableService.getLatestAccountsPayable(pageable);
@@ -40,6 +45,11 @@ public class AccountPayableController {
 
     @GetMapping("/vendor/{vendorCode}")
     @Operation(summary = "Busca contas a pagar pelo código do fornecedor")
+    @Parameter(
+            name = "sort",
+            description = "Campos disponíveis para ordenação: dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Formas de ordenação: asc, desc",
+            example = "dataVencimento,desc"
+    )
     public PageResponse<AccountPayable> getByFornecedor(
             @Parameter(description = "Código do fornecedor")
             @PathVariable("vendorCode") String codFornecedor,
@@ -50,6 +60,11 @@ public class AccountPayableController {
 
     @GetMapping("/pending")
     @Operation(summary = "Lista todas as contas a pagar pendentes (não pagas totalmente)")
+    @Parameter(
+            name = "sort",
+            description = "Campos disponíveis para ordenação: dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Formas de ordenação: asc, desc",
+            example = "dataVencimento,desc"
+    )
     public PageResponse<AccountPayable> getPendentes(
             @PageableDefault(size = 50) Pageable pageable) {
         return accountPayableService.getPendentes(pageable);

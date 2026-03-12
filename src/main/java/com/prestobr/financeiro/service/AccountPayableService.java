@@ -17,6 +17,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -342,13 +343,54 @@ public class AccountPayableService {
         }
     }
 
-    private Page<AccountPayable> toPage(List<AccountPayable> list, Pageable pageable) {
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), list.size());
-        if (start > list.size()) {
-            return new PageImpl<>(Collections.emptyList(), pageable, list.size());
+    private List<AccountPayable> applySorting(List<AccountPayable> list, Sort sort) {
+        if (sort.isUnsorted()) {
+            return list;
         }
-        return new PageImpl<>(list.subList(start, end), pageable, list.size());
+
+        Comparator<AccountPayable> comparator = null;
+
+        for (Sort.Order order : sort) {
+            Comparator<AccountPayable> fieldComparator = getComparator(order.getProperty());
+
+            if (fieldComparator != null) {
+                if (order.isDescending()) {
+                    fieldComparator = fieldComparator.reversed();
+                }
+                comparator = (comparator == null) ? fieldComparator : comparator.thenComparing(fieldComparator);
+            }
+        }
+
+        if (comparator == null) {
+            return list;
+        }
+
+        return list.stream().sorted(comparator).collect(Collectors.toList());
+    }
+
+    private Comparator<AccountPayable> getComparator(String field) {
+        return switch (field) {
+            case "dataEmissao" -> Comparator.comparing(AccountPayable::getDataEmissao, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dataVencimento" -> Comparator.comparing(AccountPayable::getDataVencimento, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dataEntrada" -> Comparator.comparing(AccountPayable::getDataEntrada, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dataCadastro" -> Comparator.comparing(AccountPayable::getDataCadastro, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dataAlteracao" -> Comparator.comparing(AccountPayable::getDataAlteracao, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "valorTitulo" -> Comparator.comparing(AccountPayable::getValorTitulo, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "numeroParcela" -> Comparator.comparing(AccountPayable::getNumeroParcela, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "diasAtraso" -> Comparator.comparing(AccountPayable::getDiasAtraso, Comparator.nullsLast(Comparator.naturalOrder()));
+            default -> null;
+        };
+    }
+
+    private Page<AccountPayable> toPage(List<AccountPayable> list, Pageable pageable) {
+        List<AccountPayable> sorted = applySorting(list, pageable.getSort());
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), sorted.size());
+        if (start > sorted.size()) {
+            return new PageImpl<>(Collections.emptyList(), pageable, sorted.size());
+        }
+        return new PageImpl<>(sorted.subList(start, end), pageable, sorted.size());
     }
 
     private PageResponse<AccountPayable> toPageResponse(Page<AccountPayable> page) {
