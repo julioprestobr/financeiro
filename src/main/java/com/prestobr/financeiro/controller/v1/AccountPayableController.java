@@ -6,12 +6,9 @@ import com.prestobr.financeiro.service.AccountPayableService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,13 +18,12 @@ import org.springframework.web.bind.annotation.*;
 public class AccountPayableController {
 
     private final AccountPayableService accountPayableService;
+    private static final String SORT_DESCRIPTION = "Campos disponíveis para ordenação (sort): dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Direções disponíveis: asc, desc. Exemplo: [\"dataVencimento,asc\",\"valorTitulo,asc\",\"diasAtraso,desc\"]";
 
     @GetMapping
-    @Operation(summary = "Lista todas as contas a pagar da run mais recente do Data Lake Silver")
-    @Parameter(
-            name = "sort",
-            description = "Campos disponíveis para ordenação: dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Formas de ordenação: asc, desc",
-            example = "dataVencimento,desc"
+    @Operation(
+            summary = "Lista todas as contas a pagar da run mais recente do Data Lake Silver",
+            description = SORT_DESCRIPTION
     )
     public PageResponse<AccountPayable> getAll(
             @PageableDefault(size = 50) Pageable pageable) {
@@ -44,11 +40,9 @@ public class AccountPayableController {
     }
 
     @GetMapping("/vendor/{vendorCode}")
-    @Operation(summary = "Busca contas a pagar pelo código do fornecedor")
-    @Parameter(
-            name = "sort",
-            description = "Campos disponíveis para ordenação: dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Formas de ordenação: asc, desc",
-            example = "dataVencimento,desc"
+    @Operation(
+            summary = "Busca contas a pagar pelo código do fornecedor",
+            description = SORT_DESCRIPTION
     )
     public PageResponse<AccountPayable> getByFornecedor(
             @Parameter(description = "Código do fornecedor")
@@ -59,11 +53,9 @@ public class AccountPayableController {
     }
 
     @GetMapping("/pending")
-    @Operation(summary = "Lista todas as contas a pagar pendentes (não pagas totalmente)")
-    @Parameter(
-            name = "sort",
-            description = "Campos disponíveis para ordenação: dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Formas de ordenação: asc, desc",
-            example = "dataVencimento,desc"
+    @Operation(
+            summary = "Lista todas as contas a pagar pendentes (não pagas totalmente)",
+            description = SORT_DESCRIPTION
     )
     public PageResponse<AccountPayable> getPendentes(
             @PageableDefault(size = 50) Pageable pageable) {
