@@ -1,6 +1,7 @@
 package com.prestobr.financeiro.service;
 
 import com.prestobr.financeiro.domain.entity.AccountPayable;
+import com.prestobr.financeiro.domain.util.AccountPayableAnonymizer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
@@ -206,7 +207,7 @@ public class AccountPayableService {
     }
 
     private AccountPayable mapToAccountPayable(GenericRecord record) {
-        return AccountPayable.builder()
+        AccountPayable original = AccountPayable.builder()
                 .codigoTitulo(getString(record, "codigo_titulo"))
                 .codigoCompra(getString(record, "codigo_compra"))
                 .codEmpresa(getString(record, "cod_empresa"))
@@ -258,6 +259,7 @@ public class AccountPayableService {
                 .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
                 .isPagoTotal(getBoolean(record, "is_pago_total"))
                 .build();
+        return AccountPayableAnonymizer.anonymize(original);
     }
 
     private String getString(GenericRecord record, String field) {
