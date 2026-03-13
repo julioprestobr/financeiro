@@ -52,6 +52,9 @@ public class AccountPayableService {
     @Value("${datalake.silver-account-payable-base-prefix}")
     private String silverPrefix;
 
+    @Value("${financeiro.account-payable.anonymize-data:false}")
+    private boolean anonymizeData;
+
     public AccountPayableService(S3Client s3Client, ApplicationContext applicationContext) {
         this.s3Client = s3Client;
         this.applicationContext = applicationContext;
@@ -366,7 +369,9 @@ public class AccountPayableService {
                 .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
                 .isPagoTotal(getBoolean(record, "is_pago_total"))
                 .build();
-        return AccountPayableAnonymizer.anonymize(original);
+        return anonymizeData
+                ? AccountPayableAnonymizer.anonymize(original)
+                : original;
     }
 
     private List<AccountPayable> applySorting(List<AccountPayable> list, Sort sort) {
