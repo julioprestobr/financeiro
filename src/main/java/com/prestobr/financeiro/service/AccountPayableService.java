@@ -13,6 +13,7 @@ import org.apache.parquet.avro.AvroParquetReader;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.Page;
@@ -436,5 +437,10 @@ public class AccountPayableService {
                 ),
                 page.getContent()
         );
+    }
+
+    @CacheEvict(value = "accounts-payable", allEntries = true)
+    public void clearCache() {
+        log.info("Cache de contas a pagar limpo");
     }
 }

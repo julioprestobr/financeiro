@@ -35,4 +35,11 @@ public class AccountPayableController {
             @PathVariable("titleCode") String codigoTitulo) {
         return accountPayableService.getByCodigoTitulo(codigoTitulo);
     }
+
+    @DeleteMapping("/cache")
+    @Operation(summary = "Limpa o cache de contas a pagar")
+    public String clearCache() {
+        accountPayableService.clearCache();
+        return "Cache limpo";
+    }
 }
