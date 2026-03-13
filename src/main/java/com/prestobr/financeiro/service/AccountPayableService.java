@@ -2,6 +2,7 @@ package com.prestobr.financeiro.service;
 
 import com.prestobr.financeiro.domain.entity.AccountPayable;
 import com.prestobr.financeiro.domain.util.AccountPayableAnonymizer;
+import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -29,15 +31,13 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.File;
-import java.math.BigDecimal;
 import java.nio.file.Files;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static com.prestobr.financeiro.util.ParquetUtils.*;
 
 @Slf4j
 @Service
@@ -57,13 +57,18 @@ public class AccountPayableService {
         this.applicationContext = applicationContext;
     }
 
+    // retorna o proxy do spring para que chamadas internas passem pelo cache
     private AccountPayableService self() {
         return applicationContext.getBean(AccountPayableService.class);
     }
 
-    public PageResponse<AccountPayable> getLatestAccountsPayable(Pageable pageable) {
-        List<AccountPayable> all = self().loadAllAccountsPayable();
-        return toPageResponse(toPage(all, pageable));
+    public PageResponse<AccountPayable> search(AccountPayablePageRequest request) {
+        Pageable pageable = buildPageable(request);
+        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
+                .filter(ap -> matchesFilters(ap, request))
+                .collect(Collectors.toList());
+
+        return toPageResponse(toPage(filtered, pageable));
     }
 
     public AccountPayable getByCodigoTitulo(String codigoTitulo) {
@@ -74,20 +79,6 @@ public class AccountPayableService {
                         HttpStatus.NOT_FOUND,
                         "Título não encontrado: " + codigoTitulo
                 ));
-    }
-
-    public PageResponse<AccountPayable> getByFornecedor(String codFornecedor, Pageable pageable) {
-        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
-                .filter(ap -> codFornecedor.equals(ap.getCodFornecedor()))
-                .collect(Collectors.toList());
-        return toPageResponse(toPage(filtered, pageable));    }
-
-    public PageResponse<AccountPayable> getPendentes(Pageable pageable) {
-        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
-                .filter(ap -> !Boolean.TRUE.equals(ap.getIsPagoTotal()))
-                .collect(Collectors.toList());
-
-        return toPageResponse(toPage(filtered, pageable));
     }
 
     @Cacheable("accounts-payable")
@@ -101,12 +92,126 @@ public class AccountPayableService {
 
         log.info("Encontrados {} arquivos Parquet na run mais recente", latestRunKeys.size());
 
-        List<AccountPayable> allAccounts = new ArrayList<>();
+        List<AccountPayable> allAccountsPayable = new ArrayList<>();
         for (String key : latestRunKeys) {
-            allAccounts.addAll(readParquetFile(key));
+            allAccountsPayable.addAll(readParquetFile(key));
         }
 
-        return allAccounts;
+        return allAccountsPayable;
+    }
+
+    // Converte uma request em um pageable do spring.
+    private Pageable buildPageable(AccountPayablePageRequest request) {
+        // sem ordenação
+        if (request.sort() == null || request.sort().isEmpty()) {
+            return PageRequest.of(request.page(), request.size());
+        }
+
+        // com ordenação
+        List<Sort.Order> orders = request.sort().stream()
+                .map(s -> {
+                    String[] parts = s.split(",");
+                    String field = parts[0];
+                    Sort.Direction direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1])
+                            ? Sort.Direction.DESC
+                            : Sort.Direction.ASC;
+                    return new Sort.Order(direction, field);
+                })
+                .toList();
+
+        return PageRequest.of(request.page(), request.size(), Sort.by(orders));
+    }
+
+    private boolean matchesFilters(AccountPayable ap, AccountPayablePageRequest request) {
+        if ("PENDING".equalsIgnoreCase(request.paymentStatus()) && Boolean.TRUE.equals(ap.getIsPagoTotal())) {
+            return false;
+        }
+        if ("PAID".equalsIgnoreCase(request.paymentStatus()) && !Boolean.TRUE.equals(ap.getIsPagoTotal())) {
+            return false;
+        }
+
+        if (request.titleCode() != null && !request.titleCode().equals(ap.getCodigoTitulo())) {
+            return false;
+        }
+
+        if (request.vendorCode() != null && !request.vendorCode().equals(ap.getCodFornecedor())) {
+            return false;
+        }
+
+        if (request.providerCode() != null && !request.providerCode().equals(ap.getPrestador())) {
+            return false;
+        }
+
+        if (request.installmentNumber() != null && !request.installmentNumber().equals(ap.getNumeroParcela())) {
+            return false;
+        }
+
+        if (request.costCenterCode() != null && !request.costCenterCode().equals(ap.getCodCentroCusto())) {
+            return false;
+        }
+
+        if (request.subCostCenterCode() != null && !request.subCostCenterCode().equals(ap.getCodSubcentroCusto())) {
+            return false;
+        }
+
+        if (request.departmentCode() != null && !request.departmentCode().equals(ap.getCodSetor())) {
+            return false;
+        }
+
+        if (request.accountPlan() != null && !request.accountPlan().equals(ap.getPlanoConta())) {
+            return false;
+        }
+
+        if (request.description() != null && ap.getHistorico() != null
+                && !ap.getHistorico().toLowerCase().contains(request.description().toLowerCase())) {
+            return false;
+        }
+
+        if (request.documentType() != null && !request.documentType().equals(ap.getTipoDocumento())) {
+            return false;
+        }
+
+        if (request.titleType() != null && !request.titleType().equals(ap.getTipoTitulo())) {
+            return false;
+        }
+
+        if (request.operation() != null && !request.operation().equals(ap.getOperacao())) {
+            return false;
+        }
+
+        if (request.paymentMethod() != null && !request.paymentMethod().equals(ap.getFormaPagamento())) {
+            return false;
+        }
+
+        if (request.paymentOption() != null && !request.paymentOption().equals(ap.getOpcaoPagamento())) {
+            return false;
+        }
+
+        if (request.emissionDateFrom() != null && ap.getDataEmissao() != null) {
+            if (ap.getDataEmissao().toLocalDate().isBefore(request.emissionDateFrom())) {
+                return false;
+            }
+        }
+
+        if (request.emissionDateTo() != null && ap.getDataEmissao() != null) {
+            if (ap.getDataEmissao().toLocalDate().isAfter(request.emissionDateTo())) {
+                return false;
+            }
+        }
+
+        if (request.dueDateFrom() != null && ap.getDataVencimento() != null) {
+            if (ap.getDataVencimento().toLocalDate().isBefore(request.dueDateFrom())) {
+                return false;
+            }
+        }
+
+        if (request.dueDateTo() != null && ap.getDataVencimento() != null) {
+            if (ap.getDataVencimento().toLocalDate().isAfter(request.dueDateTo())) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private List<String> findLatestRunParquetKeys() {
@@ -264,85 +369,6 @@ public class AccountPayableService {
         return AccountPayableAnonymizer.anonymize(original);
     }
 
-    private String getString(GenericRecord record, String field) {
-        try {
-            Object value = record.get(field);
-            return value != null ? value.toString() : null;
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private Integer getInteger(GenericRecord record, String field) {
-        try {
-            Object value = record.get(field);
-            if (value == null) return null;
-            if (value instanceof Integer) return (Integer) value;
-            if (value instanceof Long) return ((Long) value).intValue();
-            if (value instanceof Number) return ((Number) value).intValue();
-            return Integer.parseInt(value.toString());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private Long getLong(GenericRecord record, String field) {
-        try {
-            Object value = record.get(field);
-            if (value == null) return null;
-            if (value instanceof Long) return (Long) value;
-            if (value instanceof Number) return ((Number) value).longValue();
-            return Long.parseLong(value.toString());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private BigDecimal getBigDecimal(GenericRecord record, String field) {
-        try {
-            Object value = record.get(field);
-            if (value == null) return null;
-            if (value instanceof BigDecimal) return (BigDecimal) value;
-            return new BigDecimal(value.toString());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private Boolean getBoolean(GenericRecord record, String field) {
-        try {
-            Object value = record.get(field);
-            if (value == null) return null;
-            if (value instanceof Boolean) return (Boolean) value;
-            String strValue = value.toString().toLowerCase();
-            return "true".equals(strValue) || "s".equals(strValue) || "1".equals(strValue);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private LocalDateTime getLocalDateTime(GenericRecord record, String field) {
-        try {
-            Object value = record.get(field);
-            if (value == null) return null;
-
-            if (value instanceof Long) {
-                long micros = (Long) value;
-                long millis = micros / 1000;
-                return LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
-            }
-
-            if (value instanceof CharSequence) {
-                return LocalDateTime.parse(value.toString());
-            }
-
-            return null;
-        } catch (Exception e) {
-            log.trace("Erro ao converter campo {} para LocalDateTime: {}", field, e.getMessage());
-            return null;
-        }
-    }
-
     private List<AccountPayable> applySorting(List<AccountPayable> list, Sort sort) {
         if (sort.isUnsorted()) {
             return list;
@@ -382,17 +408,9 @@ public class AccountPayableService {
         };
     }
 
+    // recebe a lista completa e retorna apenas a página spring dela
     private Page<AccountPayable> toPage(List<AccountPayable> list, Pageable pageable) {
-        log.info("=== DEBUG SORT ===");
-        log.info("Sort recebido: {}", pageable.getSort());
-        log.info("Sort is unsorted: {}", pageable.getSort().isUnsorted());
-
         List<AccountPayable> sorted = applySorting(list, pageable.getSort());
-
-        if (!sorted.isEmpty()) {
-            log.info("Primeiro item dataEmissao: {}", sorted.get(0).getDataEmissao());
-            log.info("Último item dataEmissao: {}", sorted.get(sorted.size() - 1).getDataEmissao());
-        }
 
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), sorted.size());
@@ -402,6 +420,7 @@ public class AccountPayableService {
         return new PageImpl<>(sorted.subList(start, end), pageable, sorted.size());
     }
 
+    // converte page do spring para meu PageResponse
     private PageResponse<AccountPayable> toPageResponse(Page<AccountPayable> page) {
         return new PageResponse<>(
                 new Pagination(
