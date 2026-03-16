@@ -27,8 +27,9 @@ public class OpenApiConfig {
 
         return new OpenAPI()
                 .servers(List.of(server))
-                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
-                .addSecurityItem(new SecurityRequirement().addList("apiKey"))
+                .addSecurityItem(new SecurityRequirement()
+                        .addList("bearerAuth")
+                        .addList("apiKey"))
                 .components(new Components()
                         .addSecuritySchemes("bearerAuth", new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
