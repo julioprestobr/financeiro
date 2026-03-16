@@ -26,9 +26,6 @@ public class OpenApiConfig {
 
         return new OpenAPI()
                 .servers(List.of(server))
-                .addSecurityItem(new SecurityRequirement()
-                        .addList("bearerAuth")
-                        .addList("apiKey"))
                 .components(new Components()
                         .addSecuritySchemes("bearerAuth", new SecurityScheme()
                                 .type(SecurityScheme.Type.HTTP)
@@ -39,6 +36,6 @@ public class OpenApiConfig {
                                 .type(SecurityScheme.Type.APIKEY)
                                 .in(SecurityScheme.In.HEADER)
                                 .name("Authorization")
-                                .description("API Key (cole diretamente, sem Bearer)")));
+                                .description("API Key (cole diretamente, SEM 'Bearer')")));
     }
 }
