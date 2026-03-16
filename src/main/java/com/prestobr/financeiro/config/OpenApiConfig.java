@@ -19,7 +19,6 @@ public class OpenApiConfig {
 
     @Bean
     public OpenAPI customOpenAPI() {
-        final String securitySchemeName = "bearerAuth";
 
         Server server = new Server();
         server.setUrl(gatewayUrl + "/api/financeiro");
@@ -39,7 +38,7 @@ public class OpenApiConfig {
                         .addSecuritySchemes("apiKey", new SecurityScheme()
                                 .type(SecurityScheme.Type.APIKEY)
                                 .in(SecurityScheme.In.HEADER)
-                                .name("X-API-KEY")
-                                .description("API Key para autenticação")));
+                                .name("Authorization")
+                                .description("API Key (cole diretamente, sem Bearer)")));
     }
 }
