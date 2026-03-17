@@ -74,7 +74,7 @@ public record AccountPayablePageRequest(
         @Min(0)
         Integer page,
 
-        @Schema(description = "Itens por página", defaultValue = "50")
+        @Schema(description = "Itens por página", defaultValue = "100")
         @Min(1) @Max(100)
         Integer size,
 
