@@ -44,11 +44,20 @@ public class OpenApiConfig {
     }
 
     @Bean
-    public OpenApiCustomizer sortSchemasAlphabetically() {
+    public OpenApiCustomizer sortTagsAndSchemas() {
         return openApi -> {
+            // Ordena schemas
             if (openApi.getComponents() != null && openApi.getComponents().getSchemas() != null) {
                 var sortedSchemas = new TreeMap<>(openApi.getComponents().getSchemas());
                 openApi.getComponents().setSchemas(sortedSchemas);
+            }
+
+            // Ordena tags
+            if (openApi.getTags() != null) {
+                var sortedTags = openApi.getTags().stream()
+                        .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
+                        .toList();
+                openApi.setTags(sortedTags);
             }
         };
     }
