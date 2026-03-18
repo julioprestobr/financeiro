@@ -5,11 +5,13 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
+import java.util.TreeMap;
 
 @Configuration
 public class OpenApiConfig {
@@ -39,5 +41,15 @@ public class OpenApiConfig {
                                 .in(SecurityScheme.In.HEADER)
                                 .name("Authorization")
                                 .description("API Key (cole diretamente, SEM 'Bearer')")));
+    }
+
+    @Bean
+    public OpenApiCustomizer sortSchemasAlphabetically() {
+        return openApi -> {
+            if (openApi.getComponents() != null && openApi.getComponents().getSchemas() != null) {
+                var sortedSchemas = new TreeMap<>(openApi.getComponents().getSchemas());
+                openApi.getComponents().setSchemas(sortedSchemas);
+            }
+        };
     }
 }
