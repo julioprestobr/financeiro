@@ -60,6 +60,7 @@ public class DataLakeClient {
 
     public File downloadToTempFile(String s3Key) throws Exception {
         File tempFile = Files.createTempFile("datalake_", ".parquet").toFile();
+        tempFile.delete(); // Deleta o arquivo vazio criado pelo createTempFile
         tempFile.deleteOnExit();
 
         GetObjectRequest getRequest = GetObjectRequest.builder()
