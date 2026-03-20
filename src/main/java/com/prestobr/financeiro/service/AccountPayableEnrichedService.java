@@ -2,6 +2,8 @@ package com.prestobr.financeiro.service;
 
 import com.prestobr.financeiro.client.DataLakeClient;
 import com.prestobr.financeiro.domain.entity.AccountPayableEnriched;
+import com.prestobr.financeiro.domain.util.AccountPayableAnonymizer;
+import com.prestobr.financeiro.domain.util.AccountPayableEnrichedAnonymizer;
 import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
@@ -12,6 +14,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.parquet.avro.AvroParquetReader;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationContext;
@@ -36,6 +39,9 @@ public class AccountPayableEnrichedService {
 
     private final DataLakeClient dataLakeClient;
     private final ApplicationContext applicationContext;
+
+    @Value("${financeiro.account-payable.anonymize-data:false}")
+    private boolean anonymizeData;
 
     public AccountPayableEnrichedService(DataLakeClient dataLakeClient, ApplicationContext applicationContext) {
         this.dataLakeClient = dataLakeClient;
@@ -135,7 +141,7 @@ public class AccountPayableEnrichedService {
     // =========================================================================
 
     private AccountPayableEnriched mapToEntity(GenericRecord record) {
-        return AccountPayableEnriched.builder()
+        AccountPayableEnriched original = AccountPayableEnriched.builder()
                 // Identificação
                 .codigoTitulo(getString(record, "codigo_titulo"))
                 .codigoCompra(getString(record, "codigo_compra"))
@@ -239,6 +245,10 @@ public class AccountPayableEnrichedService {
                 // Metadados
                 .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
                 .build();
+
+        return anonymizeData
+                ? AccountPayableEnrichedAnonymizer.anonymize(original)
+                : original;
     }
 
     // =========================================================================
