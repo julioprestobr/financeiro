@@ -5,6 +5,7 @@ import com.prestobr.financeiro.domain.entity.AccountPayableEnriched;
 import com.prestobr.financeiro.domain.util.AccountPayableAnonymizer;
 import com.prestobr.financeiro.domain.util.AccountPayableEnrichedAnonymizer;
 import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
+import com.prestobr.financeiro.dto.response.AccountPayableEnrichedResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +57,7 @@ public class AccountPayableEnrichedService {
     // ENDPOINTS PÚBLICOS
     // =========================================================================
 
-    public PageResponse<AccountPayableEnriched> search(AccountPayablePageRequest request) {
+    public PageResponse<AccountPayableEnrichedResponse> search(AccountPayablePageRequest request) {
         Pageable pageable = buildPageable(request);
         List<AccountPayableEnriched> filtered = self().loadAll().stream()
                 .filter(ap -> matchesFilters(ap, request))
@@ -65,10 +66,11 @@ public class AccountPayableEnrichedService {
         return toPageResponse(toPage(filtered, pageable));
     }
 
-    public AccountPayableEnriched getByCodigoTitulo(String codigoTitulo) {
+    public AccountPayableEnrichedResponse getByCodigoTitulo(String codigoTitulo) {
         return self().loadAll().stream()
                 .filter(ap -> codigoTitulo.equals(ap.getCodigoTitulo()))
                 .findFirst()
+                .map(AccountPayableEnrichedResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Título não encontrado: " + codigoTitulo
@@ -420,7 +422,11 @@ public class AccountPayableEnrichedService {
         return new PageImpl<>(sorted.subList(start, end), pageable, sorted.size());
     }
 
-    private PageResponse<AccountPayableEnriched> toPageResponse(Page<AccountPayableEnriched> page) {
+    private PageResponse<AccountPayableEnrichedResponse> toPageResponse(Page<AccountPayableEnriched> page) {
+        List<AccountPayableEnrichedResponse> content = page.getContent().stream()
+                .map(AccountPayableEnrichedResponse::from)
+                .toList();
+
         return new PageResponse<>(
                 new Pagination(
                         page.getNumber(),
@@ -428,7 +434,7 @@ public class AccountPayableEnrichedService {
                         page.getTotalElements(),
                         page.getTotalPages()
                 ),
-                page.getContent()
+                content
         );
     }
 }

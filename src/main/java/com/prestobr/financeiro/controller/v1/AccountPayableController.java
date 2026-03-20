@@ -1,8 +1,8 @@
 package com.prestobr.financeiro.controller.v1;
 
 import com.prestobr.financeiro.domain.entity.AccountPayable;
-import com.prestobr.financeiro.domain.entity.AccountPayableEnriched;
 import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
+import com.prestobr.financeiro.dto.response.AccountPayableEnrichedResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.service.AccountPayableEnrichedService;
 import com.prestobr.financeiro.service.AccountPayableService;
@@ -60,13 +60,13 @@ public class AccountPayableController {
             summary = "Busca contas a pagar enriquecidas com filtros (Gold)",
             description = SORT_DESCRIPTION
     )
-    public PageResponse<AccountPayableEnriched> enrichedSearch(@RequestBody AccountPayablePageRequest request) {
+    public PageResponse<AccountPayableEnrichedResponse> enrichedSearch(@RequestBody AccountPayablePageRequest request) {
         return accountPayableEnrichedService.search(request);
     }
 
     @GetMapping("/enriched/title/{titleCode}")
     @Operation(summary = "Busca uma conta a pagar enriquecida pelo código do título (Gold)")
-    public AccountPayableEnriched getEnrichedByCodigoTitulo(
+    public AccountPayableEnrichedResponse getEnrichedByCodigoTitulo(
             @Parameter(description = "Código do título")
             @PathVariable("titleCode") String codigoTitulo) {
         return accountPayableEnrichedService.getByCodigoTitulo(codigoTitulo);
