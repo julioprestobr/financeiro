@@ -1,8 +1,7 @@
 package com.prestobr.financeiro.service;
 
 import com.prestobr.financeiro.client.DataLakeClient;
-import com.prestobr.financeiro.domain.entity.AccountPayable;
-import com.prestobr.financeiro.domain.util.AccountPayableAnonymizer;
+import com.prestobr.financeiro.domain.entity.AccountPayableEnriched;
 import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
@@ -13,7 +12,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.parquet.avro.AvroParquetReader;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationContext;
@@ -34,38 +32,35 @@ import static com.prestobr.financeiro.util.ParquetUtils.*;
 
 @Slf4j
 @Service
-public class AccountPayableService {
+public class AccountPayableEnrichedService {
 
     private final DataLakeClient dataLakeClient;
     private final ApplicationContext applicationContext;
 
-    @Value("${financeiro.account-payable.anonymize-data:false}")
-    private boolean anonymizeData;
-
-    public AccountPayableService(DataLakeClient dataLakeClient, ApplicationContext applicationContext) {
+    public AccountPayableEnrichedService(DataLakeClient dataLakeClient, ApplicationContext applicationContext) {
         this.dataLakeClient = dataLakeClient;
         this.applicationContext = applicationContext;
     }
 
-    private AccountPayableService self() {
-        return applicationContext.getBean(AccountPayableService.class);
+    private AccountPayableEnrichedService self() {
+        return applicationContext.getBean(AccountPayableEnrichedService.class);
     }
 
     // =========================================================================
     // ENDPOINTS PÚBLICOS
     // =========================================================================
 
-    public PageResponse<AccountPayable> search(AccountPayablePageRequest request) {
+    public PageResponse<AccountPayableEnriched> search(AccountPayablePageRequest request) {
         Pageable pageable = buildPageable(request);
-        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
+        List<AccountPayableEnriched> filtered = self().loadAll().stream()
                 .filter(ap -> matchesFilters(ap, request))
                 .collect(Collectors.toList());
 
         return toPageResponse(toPage(filtered, pageable));
     }
 
-    public AccountPayable getByCodigoTitulo(String codigoTitulo) {
-        return self().loadAllAccountsPayable().stream()
+    public AccountPayableEnriched getByCodigoTitulo(String codigoTitulo) {
+        return self().loadAll().stream()
                 .filter(ap -> codigoTitulo.equals(ap.getCodigoTitulo()))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(
@@ -74,45 +69,36 @@ public class AccountPayableService {
                 ));
     }
 
-    @CacheEvict(value = "accounts-payable", allEntries = true)
+    @CacheEvict(value = "accounts-payable-enriched", allEntries = true)
     public void clearCache() {
-        log.info("Cache de contas a pagar limpo");
-    }
-
-    public PageResponse<AccountPayable> enrichedSearch(AccountPayablePageRequest request) {
-        Pageable pageable = buildPageable(request);
-        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
-                .filter(ap -> matchesFilters(ap, request))
-                .collect(Collectors.toList());
-
-        return toPageResponse(toPage(filtered, pageable));
+        log.info("Cache de contas a pagar enriquecidas limpo");
     }
 
     // =========================================================================
     // CARREGAMENTO DE DADOS
     // =========================================================================
 
-    @Cacheable("accounts-payable")
-    public List<AccountPayable> loadAllAccountsPayable() {
-        List<String> latestRunKeys = dataLakeClient.findLatestRunParquetKeys();
+    @Cacheable("accounts-payable-enriched")
+    public List<AccountPayableEnriched> loadAll() {
+        List<String> latestRunKeys = dataLakeClient.findLatestRunEnrichedParquetKeys();
 
         if (latestRunKeys.isEmpty()) {
-            log.warn("Nenhum arquivo Parquet encontrado no Data Lake");
+            log.warn("Nenhum arquivo Parquet encontrado no Data Lake Gold");
             return Collections.emptyList();
         }
 
-        log.info("Encontrados {} arquivos Parquet na run mais recente", latestRunKeys.size());
+        log.info("Encontrados {} arquivos Parquet na run mais recente (Gold)", latestRunKeys.size());
 
-        List<AccountPayable> allAccountsPayable = new ArrayList<>();
+        List<AccountPayableEnriched> all = new ArrayList<>();
         for (String key : latestRunKeys) {
-            allAccountsPayable.addAll(readParquetFile(key));
+            all.addAll(readParquetFile(key));
         }
 
-        return allAccountsPayable;
+        return all;
     }
 
-    private List<AccountPayable> readParquetFile(String s3Key) {
-        List<AccountPayable> accounts = new ArrayList<>();
+    private List<AccountPayableEnriched> readParquetFile(String s3Key) {
+        List<AccountPayableEnriched> accounts = new ArrayList<>();
         File tempFile = null;
 
         try {
@@ -127,7 +113,7 @@ public class AccountPayableService {
 
                 GenericRecord record;
                 while ((record = reader.read()) != null) {
-                    accounts.add(mapToAccountPayable(record));
+                    accounts.add(mapToEntity(record));
                 }
             }
 
@@ -148,33 +134,63 @@ public class AccountPayableService {
     // MAPEAMENTO PARQUET -> ENTITY
     // =========================================================================
 
-    private AccountPayable mapToAccountPayable(GenericRecord record) {
-        AccountPayable original = AccountPayable.builder()
+    private AccountPayableEnriched mapToEntity(GenericRecord record) {
+        return AccountPayableEnriched.builder()
+                // Identificação
                 .codigoTitulo(getString(record, "codigo_titulo"))
                 .codigoCompra(getString(record, "codigo_compra"))
+
+                // Empresa
                 .codEmpresa(getString(record, "cod_empresa"))
+                .nomeEmpresa(getString(record, "nome_empresa"))
+
+                // Fornecedor
                 .codFornecedor(getString(record, "cod_fornecedor"))
-                .codCentroCusto(getString(record, "cod_centro_custo"))
-                .codSubcentroCusto(getString(record, "cod_subcentro_custo"))
-                .codSetor(getString(record, "cod_setor"))
-                .planoConta(getString(record, "plano_conta"))
-                .contrato(getString(record, "contrato"))
+                .nomeFornecedor(getString(record, "nome_fornecedor"))
+                .fantasiaFornecedor(getString(record, "fantasia_fornecedor"))
+                .cnpjFornecedor(getString(record, "cnpj_fornecedor"))
+                .cpfFornecedor(getString(record, "cpf_fornecedor"))
+
+                // Transportador
+                .transportador(getString(record, "transportador"))
+                .nomeTransportador(getString(record, "nome_transportador"))
+
+                // Prestador
                 .prestador(getString(record, "prestador"))
+                .nomePrestador(getString(record, "nome_prestador"))
+
+                // Status
+                .statusPagamento(getString(record, "status_pagamento"))
+                .nomeStatus(getString(record, "nome_status"))
+
+                // Tipo Documento
+                .tipoDocumento(getString(record, "tipo_documento"))
+                .nomeTipoDocumento(getString(record, "nome_tipo_documento"))
+
+                // Centro de Custo
+                .codCentroCusto(getString(record, "cod_centro_custo"))
+                .nomeCentroCusto(getString(record, "nome_centro_custo"))
+
+                // Subcentro de Custo
+                .codSubcentroCusto(getString(record, "cod_subcentro_custo"))
+                .nomeSubcentroCusto(getString(record, "nome_subcentro_custo"))
+
+                // Plano de Conta
+                .planoConta(getString(record, "plano_conta"))
+                .nomePlanoConta(getString(record, "nome_plano_conta"))
+
+                // Setor e Contrato
+                .codSetor(getString(record, "cod_setor"))
+                .contrato(getString(record, "contrato"))
+
+                // Datas
                 .dataEmissao(getLocalDateTime(record, "data_emissao"))
                 .dataVencimento(getLocalDateTime(record, "data_vencimento"))
                 .dataEntrada(getLocalDateTime(record, "data_entrada"))
                 .dataCadastro(getLocalDateTime(record, "data_cadastro"))
                 .dataAlteracao(getLocalDateTime(record, "data_alteracao"))
-                .historico(getString(record, "historico"))
-                .observacao(getString(record, "observacao"))
-                .tipoDocumento(getString(record, "tipo_documento"))
-                .tipoTitulo(getString(record, "tipo_titulo"))
-                .operacao(getString(record, "operacao"))
-                .formaPagamento(getString(record, "forma_pagamento"))
-                .opcaoPagamento(getString(record, "opcao_pagamento"))
-                .situacaoTitulo(getString(record, "situacao_titulo"))
-                .statusPagamento(getString(record, "status_pagamento"))
-                .isProvisao(getBoolean(record, "is_provisao"))
+
+                // Valores
                 .valorTitulo(getBigDecimal(record, "valor_titulo"))
                 .valorPago(getBigDecimal(record, "valor_pago"))
                 .valorSaldo(getBigDecimal(record, "valor_saldo"))
@@ -184,6 +200,19 @@ public class AccountPayableService {
                 .valorMovimento(getBigDecimal(record, "valor_movimento"))
                 .valorOutras(getBigDecimal(record, "valor_outras"))
                 .atualizacaoMonetaria(getBigDecimal(record, "atualizacao_monetaria"))
+
+                // Flags
+                .isPagoTotal(getBoolean(record, "is_pago_total"))
+                .isProvisao(getBoolean(record, "is_provisao"))
+
+                // Classificação
+                .situacaoTitulo(getString(record, "situacao_titulo"))
+                .tipoTitulo(getString(record, "tipo_titulo"))
+                .operacao(getString(record, "operacao"))
+                .formaPagamento(getString(record, "forma_pagamento"))
+                .opcaoPagamento(getString(record, "opcao_pagamento"))
+
+                // Parcela / Competência
                 .numeroParcela(getString(record, "numero_parcela"))
                 .mesCompetencia(getString(record, "mes_competencia"))
                 .periodo(getString(record, "periodo"))
@@ -191,27 +220,32 @@ public class AccountPayableService {
                 .periodoReferencia(getString(record, "periodo_referencia"))
                 .anoCalculo(getInteger(record, "ano_calculo"))
                 .diasAtraso(getInteger(record, "dias_atraso"))
+
+                // Texto / Histórico
+                .historico(getString(record, "historico"))
+                .observacao(getString(record, "observacao"))
+
+                // Fiscal
                 .documentoContribuinte(getString(record, "documento_contribuinte"))
                 .inscricaoEstadual(getString(record, "inscricao_estadual"))
                 .codMunicipio(getString(record, "cod_municipio"))
                 .uf(getString(record, "uf"))
+
+                // Auditoria
                 .contadorPagamento(getInteger(record, "contador_pagamento"))
                 .operadorCadastro(getString(record, "operador_cadastro"))
                 .operadorAlteracao(getString(record, "operador_alteracao"))
-                .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
-                .isPagoTotal(getBoolean(record, "is_pago_total"))
-                .build();
 
-        return anonymizeData
-                ? AccountPayableAnonymizer.anonymize(original)
-                : original;
+                // Metadados
+                .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
+                .build();
     }
 
     // =========================================================================
     // FILTROS
     // =========================================================================
 
-    private boolean matchesFilters(AccountPayable ap, AccountPayablePageRequest request) {
+    private boolean matchesFilters(AccountPayableEnriched ap, AccountPayablePageRequest request) {
         if ("PENDING".equalsIgnoreCase(request.paymentStatus()) && Boolean.TRUE.equals(ap.getIsPagoTotal())) {
             return false;
         }
@@ -326,15 +360,15 @@ public class AccountPayableService {
         return PageRequest.of(request.page(), request.size(), Sort.by(orders));
     }
 
-    private List<AccountPayable> applySorting(List<AccountPayable> list, Sort sort) {
+    private List<AccountPayableEnriched> applySorting(List<AccountPayableEnriched> list, Sort sort) {
         if (sort.isUnsorted()) {
             return list;
         }
 
-        Comparator<AccountPayable> comparator = null;
+        Comparator<AccountPayableEnriched> comparator = null;
 
         for (Sort.Order order : sort) {
-            Comparator<AccountPayable> fieldComparator = getComparator(order.getProperty());
+            Comparator<AccountPayableEnriched> fieldComparator = getComparator(order.getProperty());
 
             if (fieldComparator != null) {
                 if (order.isDescending()) {
@@ -351,22 +385,22 @@ public class AccountPayableService {
         return list.stream().sorted(comparator).collect(Collectors.toList());
     }
 
-    private Comparator<AccountPayable> getComparator(String field) {
+    private Comparator<AccountPayableEnriched> getComparator(String field) {
         return switch (field) {
-            case "dataEmissao" -> Comparator.comparing(AccountPayable::getDataEmissao, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dataVencimento" -> Comparator.comparing(AccountPayable::getDataVencimento, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dataEntrada" -> Comparator.comparing(AccountPayable::getDataEntrada, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dataCadastro" -> Comparator.comparing(AccountPayable::getDataCadastro, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dataAlteracao" -> Comparator.comparing(AccountPayable::getDataAlteracao, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "valorTitulo" -> Comparator.comparing(AccountPayable::getValorTitulo, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "numeroParcela" -> Comparator.comparing(AccountPayable::getNumeroParcela, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "diasAtraso" -> Comparator.comparing(AccountPayable::getDiasAtraso, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dataEmissao" -> Comparator.comparing(AccountPayableEnriched::getDataEmissao, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dataVencimento" -> Comparator.comparing(AccountPayableEnriched::getDataVencimento, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dataEntrada" -> Comparator.comparing(AccountPayableEnriched::getDataEntrada, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dataCadastro" -> Comparator.comparing(AccountPayableEnriched::getDataCadastro, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dataAlteracao" -> Comparator.comparing(AccountPayableEnriched::getDataAlteracao, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "valorTitulo" -> Comparator.comparing(AccountPayableEnriched::getValorTitulo, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "numeroParcela" -> Comparator.comparing(AccountPayableEnriched::getNumeroParcela, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "diasAtraso" -> Comparator.comparing(AccountPayableEnriched::getDiasAtraso, Comparator.nullsLast(Comparator.naturalOrder()));
             default -> null;
         };
     }
 
-    private Page<AccountPayable> toPage(List<AccountPayable> list, Pageable pageable) {
-        List<AccountPayable> sorted = applySorting(list, pageable.getSort());
+    private Page<AccountPayableEnriched> toPage(List<AccountPayableEnriched> list, Pageable pageable) {
+        List<AccountPayableEnriched> sorted = applySorting(list, pageable.getSort());
 
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), sorted.size());
@@ -376,7 +410,7 @@ public class AccountPayableService {
         return new PageImpl<>(sorted.subList(start, end), pageable, sorted.size());
     }
 
-    private PageResponse<AccountPayable> toPageResponse(Page<AccountPayable> page) {
+    private PageResponse<AccountPayableEnriched> toPageResponse(Page<AccountPayableEnriched> page) {
         return new PageResponse<>(
                 new Pagination(
                         page.getNumber(),

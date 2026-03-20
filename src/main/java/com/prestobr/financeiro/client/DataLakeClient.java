@@ -24,83 +24,40 @@ public class DataLakeClient {
     private final S3Client s3Client;
     private final String bucketName;
     private final String silverAccountPayableBasePrefix;
+    private final String goldAccountPayableBasePrefix;
 
-    public DataLakeClient(S3Client s3Client, String bucketName, String silverAccountPayableBasePrefix) {
+    public DataLakeClient(
+            S3Client s3Client,
+            String bucketName,
+            String silverAccountPayableBasePrefix,
+            String goldAccountPayableBasePrefix
+    ) {
         this.s3Client = s3Client;
         this.bucketName = bucketName;
         this.silverAccountPayableBasePrefix = silverAccountPayableBasePrefix;
+        this.goldAccountPayableBasePrefix = goldAccountPayableBasePrefix;
     }
 
-    /**
-     * Lista todas as chaves de arquivos Parquet no prefixo configurado.
-     */
-    public List<String> listParquetKeys() {
-        return listParquetKeys(silverAccountPayableBasePrefix);
-    }
+    // =========================================================================
+    // SILVER (AccountPayable)
+    // =========================================================================
 
-    /**
-     * Lista todas as chaves de arquivos Parquet em um prefixo específico.
-     */
-    public List<String> listParquetKeys(String prefix) {
-        List<S3Object> allObjects = listAllObjects(prefix);
-
-        return allObjects.stream()
-                .filter(obj -> obj.key().endsWith(".parquet"))
-                .map(S3Object::key)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Encontra as chaves dos arquivos Parquet da run mais recente.
-     */
     public List<String> findLatestRunParquetKeys() {
-        List<S3Object> allObjects = listAllObjects(silverAccountPayableBasePrefix);
-
-        List<S3Object> parquetFiles = allObjects.stream()
-                .filter(obj -> obj.key().endsWith(".parquet"))
-                .collect(Collectors.toList());
-
-        if (parquetFiles.isEmpty()) {
-            log.warn("Nenhum arquivo Parquet encontrado no prefix: {}", silverAccountPayableBasePrefix);
-            return List.of();
-        }
-
-        // Padrão: run-YYYYMMDD_HHMMSS
-        Pattern runPattern = Pattern.compile("run-(\\d{8}_\\d{6})");
-
-        Map<String, List<S3Object>> filesByRun = parquetFiles.stream()
-                .collect(Collectors.groupingBy(obj -> {
-                    Matcher matcher = runPattern.matcher(obj.key());
-                    return matcher.find() ? matcher.group(1) : "unknown";
-                }));
-
-        filesByRun.remove("unknown");
-
-        if (filesByRun.isEmpty()) {
-            // Fallback: pega os arquivos mais recentes por lastModified
-            log.info("Nenhuma run identificada, usando fallback por lastModified");
-            return parquetFiles.stream()
-                    .sorted(Comparator.comparing(S3Object::lastModified).reversed())
-                    .limit(10)
-                    .map(S3Object::key)
-                    .collect(Collectors.toList());
-        }
-
-        // Encontra a run mais recente
-        String latestRun = filesByRun.keySet().stream()
-                .max(Comparator.naturalOrder())
-                .orElseThrow();
-
-        log.info("Run mais recente identificada: {}", latestRun);
-
-        return filesByRun.get(latestRun).stream()
-                .map(S3Object::key)
-                .collect(Collectors.toList());
+        return findLatestRunParquetKeysFromPrefix(silverAccountPayableBasePrefix);
     }
 
-    /**
-     * Baixa um arquivo do S3 para um arquivo temporário local.
-     */
+    // =========================================================================
+    // GOLD (AccountPayableEnriched)
+    // =========================================================================
+
+    public List<String> findLatestRunEnrichedParquetKeys() {
+        return findLatestRunParquetKeysFromPrefix(goldAccountPayableBasePrefix);
+    }
+
+    // =========================================================================
+    // MÉTODOS COMUNS
+    // =========================================================================
+
     public File downloadToTempFile(String s3Key) throws Exception {
         File tempFile = Files.createTempFile("datalake_", ".parquet").toFile();
         tempFile.deleteOnExit();
@@ -116,9 +73,53 @@ public class DataLakeClient {
         return tempFile;
     }
 
-    /**
-     * Lista todos os objetos S3 em um prefixo (com paginação).
-     */
+    // =========================================================================
+    // MÉTODOS INTERNOS
+    // =========================================================================
+
+    private List<String> findLatestRunParquetKeysFromPrefix(String prefix) {
+        List<S3Object> allObjects = listAllObjects(prefix);
+
+        List<S3Object> parquetFiles = allObjects.stream()
+                .filter(obj -> obj.key().endsWith(".parquet"))
+                .collect(Collectors.toList());
+
+        if (parquetFiles.isEmpty()) {
+            log.warn("Nenhum arquivo Parquet encontrado no prefix: {}", prefix);
+            return List.of();
+        }
+
+        // Padrão: run-YYYYMMDD_HHMMSS
+        Pattern runPattern = Pattern.compile("run-(\\d{8}_\\d{6})");
+
+        Map<String, List<S3Object>> filesByRun = parquetFiles.stream()
+                .collect(Collectors.groupingBy(obj -> {
+                    Matcher matcher = runPattern.matcher(obj.key());
+                    return matcher.find() ? matcher.group(1) : "unknown";
+                }));
+
+        filesByRun.remove("unknown");
+
+        if (filesByRun.isEmpty()) {
+            log.info("Nenhuma run identificada, usando fallback por lastModified");
+            return parquetFiles.stream()
+                    .sorted(Comparator.comparing(S3Object::lastModified).reversed())
+                    .limit(10)
+                    .map(S3Object::key)
+                    .collect(Collectors.toList());
+        }
+
+        String latestRun = filesByRun.keySet().stream()
+                .max(Comparator.naturalOrder())
+                .orElseThrow();
+
+        log.info("Run mais recente identificada: {}", latestRun);
+
+        return filesByRun.get(latestRun).stream()
+                .map(S3Object::key)
+                .collect(Collectors.toList());
+    }
+
     private List<S3Object> listAllObjects(String prefix) {
         List<S3Object> allObjects = new ArrayList<>();
 
@@ -139,12 +140,19 @@ public class DataLakeClient {
         return allObjects;
     }
 
-    // Getters
+    // =========================================================================
+    // GETTERS
+    // =========================================================================
+
     public String getBucketName() {
         return bucketName;
     }
 
     public String getSilverAccountPayableBasePrefix() {
         return silverAccountPayableBasePrefix;
+    }
+
+    public String getGoldAccountPayableBasePrefix() {
+        return goldAccountPayableBasePrefix;
     }
 }
