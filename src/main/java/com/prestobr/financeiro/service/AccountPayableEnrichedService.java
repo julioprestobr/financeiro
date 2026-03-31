@@ -4,10 +4,13 @@ import com.prestobr.financeiro.client.DataLakeClient;
 import com.prestobr.financeiro.domain.entity.AccountPayableEnriched;
 import com.prestobr.financeiro.domain.util.AccountPayableAnonymizer;
 import com.prestobr.financeiro.domain.util.AccountPayableEnrichedAnonymizer;
+import com.prestobr.financeiro.domain.util.QueryFilter;
+import com.prestobr.financeiro.domain.util.QueryParser;
 import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
 import com.prestobr.financeiro.dto.response.AccountPayableEnrichedResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
+import com.prestobr.financeiro.dto.response.QueryResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
@@ -29,6 +32,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.File;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -436,5 +441,178 @@ public class AccountPayableEnrichedService {
                 ),
                 content
         );
+    }
+
+    public QueryResponse executeQuery(String query) {
+        long startTime = System.currentTimeMillis();
+
+        List<AccountPayableEnriched> allData = self().loadAll();
+
+        // Parser simples da query
+        QueryParser parsed = parseQuery(query);
+
+        // Aplica filtros
+        List<AccountPayableEnriched> filtered = allData.stream()
+                .filter(ap -> matchesQueryFilters(ap, parsed))
+                .toList();
+
+        // Aplica agregação ou seleção
+        List<Map<String, Object>> result;
+        List<String> columns;
+
+        if (parsed.hasAggregation()) {
+            result = executeAggregation(filtered, parsed);
+            columns = parsed.getSelectColumns();
+        } else {
+            result = selectColumns(filtered, parsed);
+            columns = parsed.getSelectColumns();
+        }
+
+        // Aplica limit
+        if (parsed.getLimit() > 0 && result.size() > parsed.getLimit()) {
+            result = result.subList(0, parsed.getLimit());
+        }
+
+        long executionTime = System.currentTimeMillis() - startTime;
+
+        return QueryResponse.builder()
+                .columns(columns)
+                .data(result)
+                .totalRecords(result.size())
+                .executedQuery(query)
+                .executionTimeMs(executionTime)
+                .build();
+    }
+
+    private QueryParser parseQuery(String query) {
+        return new QueryParser(query);
+    }
+
+    private boolean matchesQueryFilters(AccountPayableEnriched ap, QueryParser parsed) {
+        for (QueryFilter filter : parsed.getFilters()) {
+            Object value = getFieldValue(ap, filter.getField());
+            if (!filter.matches(value)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<Map<String, Object>> executeAggregation(List<AccountPayableEnriched> data, QueryParser parsed) {
+        Map<String, Object> result = new HashMap<>();
+
+        for (String col : parsed.getSelectColumns()) {
+            if (col.toUpperCase().startsWith("SUM(")) {
+                String field = col.substring(4, col.length() - 1);
+                BigDecimal sum = data.stream()
+                        .map(ap -> getBigDecimalField(ap, field))
+                        .filter(Objects::nonNull)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                result.put(col, sum);
+            } else if (col.toUpperCase().startsWith("COUNT(")) {
+                result.put(col, data.size());
+            } else if (col.toUpperCase().startsWith("AVG(")) {
+                String field = col.substring(4, col.length() - 1);
+                BigDecimal sum = data.stream()
+                        .map(ap -> getBigDecimalField(ap, field))
+                        .filter(Objects::nonNull)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal avg = data.isEmpty() ? BigDecimal.ZERO :
+                        sum.divide(BigDecimal.valueOf(data.size()), 2, RoundingMode.HALF_UP);
+                result.put(col, avg);
+            } else if (col.toUpperCase().startsWith("MIN(")) {
+                String field = col.substring(4, col.length() - 1);
+                BigDecimal min = data.stream()
+                        .map(ap -> getBigDecimalField(ap, field))
+                        .filter(Objects::nonNull)
+                        .min(BigDecimal::compareTo)
+                        .orElse(null);
+                result.put(col, min);
+            } else if (col.toUpperCase().startsWith("MAX(")) {
+                String field = col.substring(4, col.length() - 1);
+                BigDecimal max = data.stream()
+                        .map(ap -> getBigDecimalField(ap, field))
+                        .filter(Objects::nonNull)
+                        .max(BigDecimal::compareTo)
+                        .orElse(null);
+                result.put(col, max);
+            }
+        }
+
+        return List.of(result);
+    }
+
+    private List<Map<String, Object>> selectColumns(List<AccountPayableEnriched> data, QueryParser parsed) {
+        List<String> columns = parsed.getSelectColumns();
+        boolean selectAll = columns.contains("*");
+
+        return data.stream()
+                .map(ap -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    if (selectAll) {
+                        row.put("codigoTitulo", ap.getCodigoTitulo());
+                        row.put("nomeFornecedor", ap.getNomeFornecedor());
+                        row.put("valorTitulo", ap.getValorTitulo());
+                        row.put("valorSaldo", ap.getValorSaldo());
+                        row.put("dataVencimento", ap.getDataVencimento());
+                        row.put("isPagoTotal", ap.getIsPagoTotal());
+                    } else {
+                        for (String col : columns) {
+                            row.put(col, getFieldValue(ap, col));
+                        }
+                    }
+                    return row;
+                })
+                .toList();
+    }
+
+    private Object getFieldValue(AccountPayableEnriched ap, String field) {
+        return switch (field.toLowerCase()) {
+            case "codigotitulo" -> ap.getCodigoTitulo();
+            case "codigocompra" -> ap.getCodigoCompra();
+            case "codempresa" -> ap.getCodEmpresa();
+            case "nomeempresa" -> ap.getNomeEmpresa();
+            case "codfornecedor" -> ap.getCodFornecedor();
+            case "nomefornecedor" -> ap.getNomeFornecedor();
+            case "cnpjfornecedor" -> ap.getCnpjFornecedor();
+            case "cpffornecedor" -> ap.getCpfFornecedor();
+            case "codcentrocusto" -> ap.getCodCentroCusto();
+            case "nomecentrocusto" -> ap.getNomeCentroCusto();
+            case "planoconta" -> ap.getPlanoConta();
+            case "nomeplanoconta" -> ap.getNomePlanoConta();
+            case "statuspagamento" -> ap.getStatusPagamento();
+            case "dataemissao" -> ap.getDataEmissao();
+            case "datavencimento" -> ap.getDataVencimento();
+            case "valortitulo" -> ap.getValorTitulo();
+            case "valorpago" -> ap.getValorPago();
+            case "valorsaldo" -> ap.getValorSaldo();
+            case "valorbruto" -> ap.getValorBruto();
+            case "valordesconto" -> ap.getValorDesconto();
+            case "valoracrescimo" -> ap.getValorAcrescimo();
+            case "ispagototal" -> ap.getIsPagoTotal();
+            case "isprovisao" -> ap.getIsProvisao();
+            case "tipotitulo" -> ap.getTipoTitulo();
+            case "operacao" -> ap.getOperacao();
+            case "formapagamento" -> ap.getFormaPagamento();
+            case "numeroparcela" -> ap.getNumeroParcela();
+            case "diasatraso" -> ap.getDiasAtraso();
+            case "historico" -> ap.getHistorico();
+            case "uf" -> ap.getUf();
+            default -> null;
+        };
+    }
+
+    private BigDecimal getBigDecimalField(AccountPayableEnriched ap, String field) {
+        return switch (field.toLowerCase()) {
+            case "valortitulo" -> ap.getValorTitulo();
+            case "valorpago" -> ap.getValorPago();
+            case "valorsaldo" -> ap.getValorSaldo();
+            case "valorbruto" -> ap.getValorBruto();
+            case "valordesconto" -> ap.getValorDesconto();
+            case "valoracrescimo" -> ap.getValorAcrescimo();
+            case "valormovimento" -> ap.getValorMovimento();
+            case "valoroutras" -> ap.getValorOutras();
+            default -> null;
+        };
     }
 }

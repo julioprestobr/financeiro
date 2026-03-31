@@ -2,8 +2,10 @@ package com.prestobr.financeiro.controller.v1;
 
 import com.prestobr.financeiro.domain.entity.AccountPayable;
 import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
+import com.prestobr.financeiro.dto.request.QueryRequest;
 import com.prestobr.financeiro.dto.response.AccountPayableEnrichedResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
+import com.prestobr.financeiro.dto.response.QueryResponse;
 import com.prestobr.financeiro.service.AccountPayableEnrichedService;
 import com.prestobr.financeiro.service.AccountPayableService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -77,5 +79,11 @@ public class AccountPayableController {
     public String clearEnrichedCache() {
         accountPayableEnrichedService.clearCache();
         return "Cache enriquecido limpo";
+    }
+
+    @PostMapping("/query")
+    @Operation(summary = "Executa query dinâmica no Data Lake")
+    public QueryResponse query(@RequestBody QueryRequest request) {
+        return accountPayableEnrichedService.executeQuery(request.getQuery());
     }
 }
