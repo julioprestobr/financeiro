@@ -1,7 +1,9 @@
 package com.prestobr.financeiro.config;
 
 import com.prestobr.financeiro.infra.GatewayAuthFilter;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -17,6 +19,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -24,8 +27,15 @@ public class SecurityConfig {
 
     private final GatewayAuthFilter gatewayAuthFilter;
 
+    @PostConstruct
+    public void init() {
+        log.info("=== SecurityConfig loaded!");
+    }
+
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        log.info("=== Configuring SecurityFilterChain");
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
