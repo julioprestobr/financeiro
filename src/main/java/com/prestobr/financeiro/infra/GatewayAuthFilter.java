@@ -47,6 +47,7 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
         }
 
         if (isPublicPath(path)) {
+            log.info("=== Public path, allowing");
             filterChain.doFilter(request, response);
             return;
         }
@@ -55,11 +56,12 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
         log.info("=== GatewayAuthFilter: path={}, secret present={}", path, secret != null);
 
         if (!isValidGatewaySecret(secret)) {
-            log.warn("Requisição rejeitada - Gateway secret inválido ou ausente. Path: {}", path);
+            log.warn("=== Invalid secret! Received: {}, Expected: {}", secret, gatewaySecret);
             sendUnauthorizedResponse(response);
             return;
         }
 
+        log.info("=== Secret valid, configuring security context");
         try {
             configureSecurityContext(request);
             filterChain.doFilter(request, response);
