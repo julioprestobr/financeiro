@@ -499,6 +499,14 @@ public class AccountPayableEnrichedService {
     }
 
     private List<Map<String, Object>> executeAggregation(List<AccountPayableEnriched> data, QueryParser parsed) {
+        String groupByField = parsed.getGroupByColumn();
+
+        // Se tem GROUP BY, agrupa os dados
+        if (groupByField != null && !groupByField.isEmpty()) {
+            return executeGroupedAggregation(data, parsed, groupByField);
+        }
+
+        // Sem GROUP BY, retorna agregação única (comportamento atual)
         Map<String, Object> result = new HashMap<>();
 
         for (String col : parsed.getSelectColumns()) {
@@ -540,6 +548,80 @@ public class AccountPayableEnrichedService {
         }
 
         return List.of(result);
+    }
+
+    private List<Map<String, Object>> executeGroupedAggregation(List<AccountPayableEnriched> data, QueryParser parsed, String groupByField) {
+        // Agrupa os dados pelo campo
+        Map<Object, List<AccountPayableEnriched>> grouped = data.stream()
+                .collect(Collectors.groupingBy(ap -> {
+                    Object value = getFieldValue(ap, groupByField.toLowerCase());
+                    return value != null ? value : "NULL";
+                }));
+
+        List<Map<String, Object>> results = new ArrayList<>();
+
+        for (Map.Entry<Object, List<AccountPayableEnriched>> entry : grouped.entrySet()) {
+            Map<String, Object> row = new HashMap<>();
+            List<AccountPayableEnriched> groupData = entry.getValue();
+
+            // Adiciona o campo do GROUP BY
+            row.put(groupByField, entry.getKey());
+
+            // Calcula agregações para cada grupo
+            for (String col : parsed.getSelectColumns()) {
+                String colUpper = col.toUpperCase();
+
+                if (colUpper.startsWith("SUM(")) {
+                    String field = col.substring(4, col.length() - 1);
+                    BigDecimal sum = groupData.stream()
+                            .map(ap -> getBigDecimalField(ap, field))
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    row.put(col, sum);
+                } else if (colUpper.startsWith("COUNT(")) {
+                    row.put(col, groupData.size());
+                } else if (colUpper.startsWith("AVG(")) {
+                    String field = col.substring(4, col.length() - 1);
+                    BigDecimal sum = groupData.stream()
+                            .map(ap -> getBigDecimalField(ap, field))
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal avg = groupData.isEmpty() ? BigDecimal.ZERO :
+                            sum.divide(BigDecimal.valueOf(groupData.size()), 2, RoundingMode.HALF_UP);
+                    row.put(col, avg);
+                } else if (colUpper.startsWith("MIN(")) {
+                    String field = col.substring(4, col.length() - 1);
+                    BigDecimal min = groupData.stream()
+                            .map(ap -> getBigDecimalField(ap, field))
+                            .filter(Objects::nonNull)
+                            .min(BigDecimal::compareTo)
+                            .orElse(null);
+                    row.put(col, min);
+                } else if (colUpper.startsWith("MAX(")) {
+                    String field = col.substring(4, col.length() - 1);
+                    BigDecimal max = groupData.stream()
+                            .map(ap -> getBigDecimalField(ap, field))
+                            .filter(Objects::nonNull)
+                            .max(BigDecimal::compareTo)
+                            .orElse(null);
+                    row.put(col, max);
+                }
+            }
+
+            results.add(row);
+        }
+
+        // Ordena pelo campo do GROUP BY
+        results.sort((a, b) -> {
+            Object valA = a.get(groupByField);
+            Object valB = b.get(groupByField);
+            if (valA instanceof Comparable && valB instanceof Comparable) {
+                return ((Comparable) valA).compareTo(valB);
+            }
+            return String.valueOf(valA).compareTo(String.valueOf(valB));
+        });
+
+        return results;
     }
 
     private List<Map<String, Object>> selectColumns(List<AccountPayableEnriched> data, QueryParser parsed) {

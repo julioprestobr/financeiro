@@ -94,4 +94,8 @@ public class QueryParser {
         }
         return false;
     }
+
+    public String getGroupByColumn() {
+        return groupBy;
+    }
 }
