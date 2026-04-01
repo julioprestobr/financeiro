@@ -52,6 +52,7 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
         }
 
         String secret = request.getHeader(GATEWAY_SECRET_HEADER);
+        log.info("=== GatewayAuthFilter: path={}, secret present={}", path, secret != null);
 
         if (!isValidGatewaySecret(secret)) {
             log.warn("Requisição rejeitada - Gateway secret inválido ou ausente. Path: {}", path);
