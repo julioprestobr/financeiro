@@ -1,5 +1,6 @@
 package com.prestobr.financeiro.infra;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,6 +27,11 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
 
     @Value("${gateway.secret}")
     private String gatewaySecret;
+
+    @PostConstruct
+    public void init() {
+        log.info("=== GatewayAuthFilter loaded! gateway.secret present: {}", gatewaySecret != null);
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
