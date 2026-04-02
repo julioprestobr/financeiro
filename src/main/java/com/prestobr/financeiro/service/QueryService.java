@@ -46,7 +46,7 @@ public class QueryService {
             stmt.execute("SET s3_endpoint='" + endpointUrl.replace("https://", "").replace("http://", "") + "';");
 
             // Cria view temporária apontando pro Parquet
-            stmt.execute("CREATE VIEW dados AS SELECT * FROM parquet_scan('" + s3Path + "');");
+            stmt.execute("CREATE VIEW dados AS SELECT * FROM read_parquet('" + s3Path + "', union_by_name=true);");
 
             // Substitui o nome da tabela na query pelo view
             String finalQuery = query.replaceAll("(?i)FROM\\s+\\w+", "FROM dados");
