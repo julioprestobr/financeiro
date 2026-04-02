@@ -9,6 +9,9 @@ import lombok.Getter;
 public class QueryRequest {
 
     @NotBlank
+    private String dataset;
+
+    @NotBlank
     @Schema(description = "Query em linguagem natural ou SQL-like",
             example = "SELECT SUM(valorTitulo) FROM contas WHERE dataVencimento < '2026-04-07'")
     private String query;
