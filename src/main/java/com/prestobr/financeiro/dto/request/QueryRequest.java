@@ -15,4 +15,7 @@ public class QueryRequest {
     @Schema(description = "Query em linguagem natural ou SQL-like",
             example = "SELECT SUM(valorTitulo) FROM contas WHERE dataVencimento < '2026-04-07'")
     private String query;
+
+    @NotBlank
+    private String s3Path;
 }

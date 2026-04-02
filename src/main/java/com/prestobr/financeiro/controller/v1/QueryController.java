@@ -21,6 +21,6 @@ public class QueryController {
 
     @PostMapping("/query")
     public QueryResponse query(@Valid @RequestBody QueryRequest request) {
-        return queryService.execute(request.getDataset(), request.getQuery());
+        return queryService.execute(request.getQuery(), request.getS3Path());
     }
 }
