@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,41 +34,18 @@ public class QueryService {
     @Value("${s3.bucket-name}")
     private String bucketName;
 
+    private final Map<String, Connection> connectionCache = new ConcurrentHashMap<>();
+
     public QueryResponse execute(String query, String s3Path) {
         long startTime = System.currentTimeMillis();
 
-        // Busca apenas arquivos da run mais recente
-        List<String> latestKeys = dataLakeClient.findLatestRunParquetKeysFromPrefix(s3Path);
-
-        if (latestKeys.isEmpty()) {
-            throw new RuntimeException("No parquet files found in: " + s3Path);
-        }
-
-        log.info("Encontrados {} arquivos da run mais recente em {}", latestKeys.size(), s3Path);
-
-        // Monta lista de paths pro DuckDB
-        String paths = latestKeys.stream()
-                .map(key -> "'s3://" + bucketName + "/" + key + "'")
-                .collect(Collectors.joining(", "));
-
-        try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
+        try {
+            Connection conn = getOrCreateConnection(s3Path);
             Statement stmt = conn.createStatement();
 
-            // Configura acesso ao S3
-            stmt.execute("INSTALL httpfs;");
-            stmt.execute("LOAD httpfs;");
-            stmt.execute("SET s3_region='" + region + "';");
-            stmt.execute("SET s3_access_key_id='" + accessKey + "';");
-            stmt.execute("SET s3_secret_access_key='" + secretKey + "';");
-            stmt.execute("SET s3_endpoint='" + endpointUrl.replace("https://", "").replace("http://", "") + "';");
-
-            // Cria view com arquivos específicos da run mais recente
-            stmt.execute("CREATE VIEW dados AS SELECT * FROM read_parquet([" + paths + "], union_by_name=true);");
-
-            // Substitui o nome da tabela na query pelo view
             String finalQuery = query.replaceAll("(?i)FROM\\s+\\w+", "FROM dados");
 
-            log.info("Executando query: {}", finalQuery);
+            log.info("Executing query: {}", finalQuery);
 
             ResultSet rs = stmt.executeQuery(finalQuery);
 
@@ -97,7 +75,62 @@ public class QueryService {
                     .build();
 
         } catch (SQLException e) {
+            connectionCache.remove(s3Path);
             throw new RuntimeException("Error executing query: " + e.getMessage(), e);
         }
+    }
+
+    private synchronized Connection getOrCreateConnection(String s3Path) throws SQLException {
+        Connection conn = connectionCache.get(s3Path);
+
+        if (conn != null && !conn.isClosed()) {
+            log.debug("Using cached connection for: {}", s3Path);
+            return conn;
+        }
+
+        log.info("Creating new DuckDB connection for: {}", s3Path);
+
+        List<String> latestKeys = dataLakeClient.findLatestRunParquetKeysFromPrefix(s3Path);
+
+        if (latestKeys.isEmpty()) {
+            throw new RuntimeException("No parquet files found in: " + s3Path);
+        }
+
+        log.info("Found {} files in latest run", latestKeys.size());
+
+        String paths = latestKeys.stream()
+                .map(key -> "'s3://" + bucketName + "/" + key + "'")
+                .collect(Collectors.joining(", "));
+
+        conn = DriverManager.getConnection("jdbc:duckdb:");
+        Statement stmt = conn.createStatement();
+
+        stmt.execute("INSTALL httpfs;");
+        stmt.execute("LOAD httpfs;");
+        stmt.execute("SET s3_region='" + region + "';");
+        stmt.execute("SET s3_access_key_id='" + accessKey + "';");
+        stmt.execute("SET s3_secret_access_key='" + secretKey + "';");
+        stmt.execute("SET s3_endpoint='" + endpointUrl.replace("https://", "").replace("http://", "") + "';");
+
+        stmt.execute("CREATE TABLE dados AS SELECT * FROM read_parquet([" + paths + "], union_by_name=true);");
+
+        log.info("Data loaded into memory for: {}", s3Path);
+
+        connectionCache.put(s3Path, conn);
+        return conn;
+    }
+
+    public void clearCache() {
+        log.info("Clearing DuckDB connection cache");
+        for (Map.Entry<String, Connection> entry : connectionCache.entrySet()) {
+            try {
+                if (entry.getValue() != null && !entry.getValue().isClosed()) {
+                    entry.getValue().close();
+                }
+            } catch (SQLException e) {
+                log.warn("Error closing connection: {}", e.getMessage());
+            }
+        }
+        connectionCache.clear();
     }
 }
