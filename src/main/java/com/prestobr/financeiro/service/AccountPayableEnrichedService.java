@@ -148,6 +148,11 @@ public class AccountPayableEnrichedService {
     // =========================================================================
 
     private AccountPayableEnriched mapToEntity(GenericRecord record) {
+        Object raw = record.get("valor_titulo");
+
+        System.out.println("VALOR_TITULO RAW: " + raw);
+        System.out.println("TIPO: " + (raw != null ? raw.getClass() : "null"));
+
         AccountPayableEnriched original = AccountPayableEnriched.builder()
                 // Identificação
                 .codigoTitulo(getString(record, "codigo_titulo"))

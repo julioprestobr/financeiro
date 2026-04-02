@@ -62,7 +62,7 @@ public class ParquetUtils {
             if (value instanceof ByteBuffer buffer) {
                 byte[] bytes = new byte[buffer.remaining()];
                 buffer.get(bytes);
-                return new BigDecimal(new java.math.BigInteger(bytes), 2); // ⚠️ scale pode variar
+                return new BigDecimal(new java.math.BigInteger(bytes), 2);
             }
 
             if (value instanceof Binary binary) {
