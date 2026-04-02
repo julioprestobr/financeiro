@@ -86,12 +86,11 @@ public class QueryService {
     }
 
     private String getS3PathForDataset(String dataset) {
-        // Mapeia dataset pro path no S3
         return switch (dataset) {
             case "accounts-payable_datalake_gold" ->
-                    "s3://" + bucketName + "/gold/financeiro/contas-a-pagar-titulos/**/*.parquet";
+                    "s3://" + bucketName + "/gold/financeiro/contas_a_pagar/titulos/**/*.parquet";
             case "accounts-payable_datalake_silver" ->
-                    "s3://" + bucketName + "/silver/financeiro/contas-a-pagar/**/*.parquet";
+                    "s3://" + bucketName + "/silver/financeiro/contas_a_pagar/system=databit/build_type=full/**/*.parquet";
             default -> throw new RuntimeException("Dataset not supported: " + dataset);
         };
     }
