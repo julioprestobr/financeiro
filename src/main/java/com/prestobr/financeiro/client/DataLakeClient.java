@@ -78,7 +78,7 @@ public class DataLakeClient {
     // MÉTODOS INTERNOS
     // =========================================================================
 
-    private List<String> findLatestRunParquetKeysFromPrefix(String prefix) {
+    public List<String> findLatestRunParquetKeysFromPrefix(String prefix) {
         List<S3Object> allObjects = listAllObjects(prefix);
 
         List<S3Object> parquetFiles = allObjects.stream()

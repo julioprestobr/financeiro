@@ -1,16 +1,22 @@
 package com.prestobr.financeiro.service;
 
+import com.prestobr.financeiro.client.DataLakeClient;
 import com.prestobr.financeiro.dto.response.QueryResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class QueryService {
+
+    private final DataLakeClient dataLakeClient;
 
     @Value("${s3.endpoint-url}")
     private String endpointUrl;
@@ -30,7 +36,19 @@ public class QueryService {
     public QueryResponse execute(String query, String s3Path) {
         long startTime = System.currentTimeMillis();
 
-        String fullPath = "s3://" + bucketName + "/" + s3Path + "/**/*.parquet";
+        // Busca apenas arquivos da run mais recente
+        List<String> latestKeys = dataLakeClient.findLatestRunParquetKeysFromPrefix(s3Path);
+
+        if (latestKeys.isEmpty()) {
+            throw new RuntimeException("No parquet files found in: " + s3Path);
+        }
+
+        log.info("Encontrados {} arquivos da run mais recente em {}", latestKeys.size(), s3Path);
+
+        // Monta lista de paths pro DuckDB
+        String paths = latestKeys.stream()
+                .map(key -> "'s3://" + bucketName + "/" + key + "'")
+                .collect(Collectors.joining(", "));
 
         try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
             Statement stmt = conn.createStatement();
@@ -43,8 +61,8 @@ public class QueryService {
             stmt.execute("SET s3_secret_access_key='" + secretKey + "';");
             stmt.execute("SET s3_endpoint='" + endpointUrl.replace("https://", "").replace("http://", "") + "';");
 
-            // Cria view temporária apontando pro Parquet
-            stmt.execute("CREATE VIEW dados AS SELECT * FROM read_parquet('" + fullPath + "', union_by_name=true);");
+            // Cria view com arquivos específicos da run mais recente
+            stmt.execute("CREATE VIEW dados AS SELECT * FROM read_parquet([" + paths + "], union_by_name=true);");
 
             // Substitui o nome da tabela na query pelo view
             String finalQuery = query.replaceAll("(?i)FROM\\s+\\w+", "FROM dados");
