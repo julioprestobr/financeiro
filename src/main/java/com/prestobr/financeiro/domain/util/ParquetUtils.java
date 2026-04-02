@@ -1,11 +1,15 @@
 package com.prestobr.financeiro.util;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.avro.LogicalTypes;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.util.Utf8;
 import org.apache.parquet.io.api.Binary;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -55,23 +59,32 @@ public class ParquetUtils {
             Object value = record.get(field);
             if (value == null) return null;
 
-            if (value instanceof BigDecimal) {
-                return (BigDecimal) value;
+            // pega schema do campo
+            Schema.Field schemaField = record.getSchema().getField(field);
+            if (schemaField == null) return null;
+
+            Schema fieldSchema = schemaField.schema();
+
+            // trata union (nullable)
+            if (fieldSchema.getType() == Schema.Type.UNION) {
+                for (Schema s : fieldSchema.getTypes()) {
+                    if (s.getType() != Schema.Type.NULL) {
+                        fieldSchema = s;
+                        break;
+                    }
+                }
             }
 
-            if (value instanceof ByteBuffer buffer) {
-                byte[] bytes = new byte[buffer.remaining()];
-                buffer.get(bytes);
-                return new BigDecimal(new java.math.BigInteger(bytes), 2);
-            }
+            // pega logical type
+            LogicalTypes.Decimal decimalType =
+                    (LogicalTypes.Decimal) fieldSchema.getLogicalType();
 
-            if (value instanceof Binary binary) {
-                byte[] bytes = binary.getBytes();
-                return new BigDecimal(new java.math.BigInteger(bytes), 2);
-            }
+            int scale = decimalType.getScale();
 
-            if (value instanceof Utf8 utf8) {
-                return new BigDecimal(utf8.toString());
+            // converte FIXED
+            if (value instanceof GenericData.Fixed fixed) {
+                byte[] bytes = fixed.bytes();
+                return new BigDecimal(new BigInteger(bytes), scale);
             }
 
             return new BigDecimal(value.toString());
