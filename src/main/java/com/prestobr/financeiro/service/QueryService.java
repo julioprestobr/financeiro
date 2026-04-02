@@ -1,5 +1,6 @@
 package com.prestobr.financeiro.service;
 
+import com.prestobr.financeiro.client.DataLakeClient;
 import com.prestobr.financeiro.dto.response.QueryResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,11 +9,14 @@ import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class QueryService {
+
+    private final DataLakeClient dataLakeClient;
 
     @Value("${s3.endpoint-url}")
     private String endpointUrl;
@@ -32,7 +36,16 @@ public class QueryService {
     public QueryResponse execute(String dataset, String query) {
         long startTime = System.currentTimeMillis();
 
-        String s3Path = getS3PathForDataset(dataset);
+        List<String> parquetKeys = getParquetKeysForDataset(dataset);
+
+        if (parquetKeys.isEmpty()) {
+            throw new RuntimeException("No parquet files found for dataset: " + dataset);
+        }
+
+        // Monta lista de paths S3
+        String s3Paths = parquetKeys.stream()
+                .map(key -> "'s3://" + bucketName + "/" + key + "'")
+                .collect(Collectors.joining(", "));
 
         try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
             Statement stmt = conn.createStatement();
@@ -45,8 +58,8 @@ public class QueryService {
             stmt.execute("SET s3_secret_access_key='" + secretKey + "';");
             stmt.execute("SET s3_endpoint='" + endpointUrl.replace("https://", "").replace("http://", "") + "';");
 
-            // Cria view temporária apontando pro Parquet
-            stmt.execute("CREATE VIEW dados AS SELECT * FROM read_parquet('" + s3Path + "', union_by_name=true);");
+            // Cria view com os arquivos específicos da run mais recente
+            stmt.execute("CREATE VIEW dados AS SELECT * FROM read_parquet([" + s3Paths + "], union_by_name=true);");
 
             // Substitui o nome da tabela na query pelo view
             String finalQuery = query.replaceAll("(?i)FROM\\s+\\w+", "FROM dados");
@@ -85,12 +98,10 @@ public class QueryService {
         }
     }
 
-    private String getS3PathForDataset(String dataset) {
+    private List<String> getParquetKeysForDataset(String dataset) {
         return switch (dataset) {
-            case "accounts-payable_datalake_gold" ->
-                    "s3://" + bucketName + "/gold/financeiro/contas_a_pagar/titulos/**/*.parquet";
-            case "accounts-payable_datalake_silver" ->
-                    "s3://" + bucketName + "/silver/financeiro/contas_a_pagar/system=databit/build_type=full/**/*.parquet";
+            case "accounts-payable_datalake_gold" -> dataLakeClient.findLatestRunEnrichedParquetKeys();
+            case "accounts-payable_datalake_silver" -> dataLakeClient.findLatestRunParquetKeys();
             default -> throw new RuntimeException("Dataset not supported: " + dataset);
         };
     }
