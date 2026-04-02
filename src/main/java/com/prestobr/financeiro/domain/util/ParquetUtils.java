@@ -2,8 +2,11 @@ package com.prestobr.financeiro.util;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.util.Utf8;
+import org.apache.parquet.io.api.Binary;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -51,8 +54,28 @@ public class ParquetUtils {
         try {
             Object value = record.get(field);
             if (value == null) return null;
-            if (value instanceof BigDecimal) return (BigDecimal) value;
+
+            if (value instanceof BigDecimal) {
+                return (BigDecimal) value;
+            }
+
+            if (value instanceof ByteBuffer buffer) {
+                byte[] bytes = new byte[buffer.remaining()];
+                buffer.get(bytes);
+                return new BigDecimal(new java.math.BigInteger(bytes), 2); // ⚠️ scale pode variar
+            }
+
+            if (value instanceof Binary binary) {
+                byte[] bytes = binary.getBytes();
+                return new BigDecimal(new java.math.BigInteger(bytes), 2);
+            }
+
+            if (value instanceof Utf8 utf8) {
+                return new BigDecimal(utf8.toString());
+            }
+
             return new BigDecimal(value.toString());
+
         } catch (Exception e) {
             return null;
         }
