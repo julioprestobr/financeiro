@@ -93,6 +93,13 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
                     new UsernamePasswordAuthenticationToken(userId, null, authorities);
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
+        } else {
+            List<SimpleGrantedAuthority> authorities = List.of(
+                    new SimpleGrantedAuthority("ROLE_ADMIN")
+            );
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken("system", null, authorities);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
         }
     }
 
