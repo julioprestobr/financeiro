@@ -133,4 +133,15 @@ public class QueryService {
         }
         connectionCache.clear();
     }
+
+    public void warmup(List<String> s3Paths) {
+        for (String s3Path : s3Paths) {
+            try {
+                log.info("Warming up cache for: {}", s3Path);
+                getOrCreateConnection(s3Path);
+            } catch (Exception e) {
+                log.error("Failed to warmup {}: {}", s3Path, e.getMessage());
+            }
+        }
+    }
 }
