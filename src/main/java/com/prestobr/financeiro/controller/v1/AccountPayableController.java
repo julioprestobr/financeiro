@@ -25,38 +25,6 @@ public class AccountPayableController {
 
     private static final String SORT_DESCRIPTION = "Campos disponíveis para ordenação (sort): dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Direções disponíveis: asc, desc. Exemplo: [\"dataVencimento,asc\",\"valorTitulo,asc\",\"diasAtraso,desc\"]";
 
-    // =========================================================================
-    // SILVER (AccountPayable)
-    // =========================================================================
-
-    @PostMapping("/search")
-    @Operation(
-            summary = "Busca contas a pagar com filtros (Silver)",
-            description = SORT_DESCRIPTION
-    )
-    public PageResponse<AccountPayable> search(@RequestBody AccountPayablePageRequest request) {
-        return accountPayableService.search(request);
-    }
-
-    @GetMapping("/title/{titleCode}")
-    @Operation(summary = "Busca uma conta a pagar pelo código do título (Silver)")
-    public AccountPayable getByCodigoTitulo(
-            @Parameter(description = "Código do título")
-            @PathVariable("titleCode") String codigoTitulo) {
-        return accountPayableService.getByCodigoTitulo(codigoTitulo);
-    }
-
-    @DeleteMapping("/cache")
-    @Operation(summary = "Limpa o cache de contas a pagar (Silver)")
-    public String clearCache() {
-        accountPayableService.clearCache();
-        return "Cache limpo";
-    }
-
-    // =========================================================================
-    // GOLD (AccountPayableEnriched)
-    // =========================================================================
-
     @PostMapping("/enriched/search")
     @Operation(
             summary = "Busca contas a pagar enriquecidas com filtros (Gold)",

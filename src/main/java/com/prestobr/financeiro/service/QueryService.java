@@ -43,7 +43,7 @@ public class QueryService {
             Connection conn = getOrCreateConnection(s3Path);
             Statement stmt = conn.createStatement();
 
-            String finalQuery = query.replaceAll("(?i)FROM\\s+\\w+", "FROM dados");
+            String finalQuery = query.replaceAll("(?i)FROM\\s+[\\w\\-]+", "FROM dados");
 
             log.info("Executing query: {}", finalQuery);
 
