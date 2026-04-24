@@ -284,6 +284,10 @@ public class AccountPayableService {
             return false;
         }
 
+        if (request.purchaseCode() != null && !request.purchaseCode().equals(ap.getPurchaseCode())){
+            return false;
+        }
+
         if (request.vendorCode() != null && !request.vendorCode().equals(ap.getVendorCode())) {
             return false;
         }
