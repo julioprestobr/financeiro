@@ -1,13 +1,13 @@
 package com.prestobr.financeiro.dto.response;
 
-import com.prestobr.financeiro.domain.entity.AccountPayableEnriched;
+import com.prestobr.financeiro.domain.entity.AccountPayable;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Schema(name = "Response.AccountPayableEnriched", description = "Dados de um AccountPayableEnriched")
-public record AccountPayableEnrichedResponse(
+@Schema(name = "Response.AccountPayable", description = "Dados de um AccountPayable")
+public record AccountPayableResponse(
                 String codigoTitulo,
                 String codigoCompra,
                 String codEmpresa,
@@ -72,8 +72,8 @@ public record AccountPayableEnrichedResponse(
                 String operadorAlteracao,
                 LocalDateTime snapshotDatetime
 ) {
-    public static AccountPayableEnrichedResponse from(AccountPayableEnriched ap) {
-        return new AccountPayableEnrichedResponse(
+    public static AccountPayableResponse from(AccountPayable ap) {
+        return new AccountPayableResponse(
                 ap.getCodigoTitulo(),
                 ap.getCodigoCompra(),
                 ap.getCodEmpresa(),

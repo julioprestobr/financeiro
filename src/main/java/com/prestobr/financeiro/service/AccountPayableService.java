@@ -3,9 +3,13 @@ package com.prestobr.financeiro.service;
 import com.prestobr.financeiro.client.DataLakeClient;
 import com.prestobr.financeiro.domain.entity.AccountPayable;
 import com.prestobr.financeiro.domain.util.AccountPayableAnonymizer;
+import com.prestobr.financeiro.domain.util.QueryFilter;
+import com.prestobr.financeiro.domain.util.QueryParser;
 import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
+import com.prestobr.financeiro.dto.response.AccountPayableResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
+import com.prestobr.financeiro.dto.response.QueryResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
@@ -27,6 +31,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.File;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -55,19 +61,20 @@ public class AccountPayableService {
     // ENDPOINTS PÚBLICOS
     // =========================================================================
 
-    public PageResponse<AccountPayable> search(AccountPayablePageRequest request) {
+    public PageResponse<AccountPayableResponse> search(AccountPayablePageRequest request) {
         Pageable pageable = buildPageable(request);
-        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
+        List<AccountPayable> filtered = self().loadAll().stream()
                 .filter(ap -> matchesFilters(ap, request))
                 .collect(Collectors.toList());
 
         return toPageResponse(toPage(filtered, pageable));
     }
 
-    public AccountPayable getByCodigoTitulo(String codigoTitulo) {
-        return self().loadAllAccountsPayable().stream()
+    public AccountPayableResponse getByCodigoTitulo(String codigoTitulo) {
+        return self().loadAll().stream()
                 .filter(ap -> codigoTitulo.equals(ap.getCodigoTitulo()))
                 .findFirst()
+                .map(AccountPayableResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Título não encontrado: " + codigoTitulo
@@ -79,36 +86,27 @@ public class AccountPayableService {
         log.info("Cache de contas a pagar limpo");
     }
 
-    public PageResponse<AccountPayable> enrichedSearch(AccountPayablePageRequest request) {
-        Pageable pageable = buildPageable(request);
-        List<AccountPayable> filtered = self().loadAllAccountsPayable().stream()
-                .filter(ap -> matchesFilters(ap, request))
-                .collect(Collectors.toList());
-
-        return toPageResponse(toPage(filtered, pageable));
-    }
-
     // =========================================================================
     // CARREGAMENTO DE DADOS
     // =========================================================================
 
     @Cacheable("accounts-payable")
-    public List<AccountPayable> loadAllAccountsPayable() {
+    public List<AccountPayable> loadAll() {
         List<String> latestRunKeys = dataLakeClient.findLatestRunParquetKeys();
 
         if (latestRunKeys.isEmpty()) {
-            log.warn("Nenhum arquivo Parquet encontrado no Data Lake");
+            log.warn("Nenhum arquivo Parquet encontrado no Data Lake Gold");
             return Collections.emptyList();
         }
 
-        log.info("Encontrados {} arquivos Parquet na run mais recente", latestRunKeys.size());
+        log.info("Encontrados {} arquivos Parquet na run mais recente (Gold)", latestRunKeys.size());
 
-        List<AccountPayable> allAccountsPayable = new ArrayList<>();
+        List<AccountPayable> all = new ArrayList<>();
         for (String key : latestRunKeys) {
-            allAccountsPayable.addAll(readParquetFile(key));
+            all.addAll(readParquetFile(key));
         }
 
-        return allAccountsPayable;
+        return all;
     }
 
     private List<AccountPayable> readParquetFile(String s3Key) {
@@ -127,7 +125,7 @@ public class AccountPayableService {
 
                 GenericRecord record;
                 while ((record = reader.read()) != null) {
-                    accounts.add(mapToAccountPayable(record));
+                    accounts.add(mapToEntity(record));
                 }
             }
 
@@ -148,33 +146,74 @@ public class AccountPayableService {
     // MAPEAMENTO PARQUET -> ENTITY
     // =========================================================================
 
-    private AccountPayable mapToAccountPayable(GenericRecord record) {
+    private AccountPayable mapToEntity(GenericRecord record) {
+        Object raw = record.get("valor_titulo");
+
+        System.out.println("VALOR_TITULO RAW: " + raw);
+        System.out.println("TIPO: " + (raw != null ? raw.getClass() : "null"));
+
         AccountPayable original = AccountPayable.builder()
+                // Identificação
                 .codigoTitulo(getString(record, "codigo_titulo"))
                 .codigoCompra(getString(record, "codigo_compra"))
+
+                // Empresa
                 .codEmpresa(getString(record, "cod_empresa"))
+                .nomeEmpresa(getString(record, "nome_empresa"))
+
+                // Fornecedor
                 .codFornecedor(getString(record, "cod_fornecedor"))
-                .codCentroCusto(getString(record, "cod_centro_custo"))
-                .codSubcentroCusto(getString(record, "cod_subcentro_custo"))
-                .codSetor(getString(record, "cod_setor"))
-                .planoConta(getString(record, "plano_conta"))
-                .contrato(getString(record, "contrato"))
+                .nomeFornecedor(getString(record, "nome_fornecedor"))
+                .fantasiaFornecedor(getString(record, "fantasia_fornecedor"))
+                .cnpjFornecedor(getString(record, "cnpj_fornecedor"))
+                .cpfFornecedor(getString(record, "cpf_fornecedor"))
+
+                // Transportador
+                .transportador(getString(record, "transportador"))
+                .nomeTransportador(getString(record, "nome_transportador"))
+                .fantasiaTransportador(getString(record, "fantasia_transportador"))
+                .cnpjTransportador(getString(record, "cnpj_transportador"))
+                .cpfTransportador(getString(record, "cpf_transportador"))
+
+                // Prestador
                 .prestador(getString(record, "prestador"))
+                .nomePrestador(getString(record, "nome_prestador"))
+                .fantasiaPrestador(getString(record, "fantasia_prestador"))
+                .cnpjPrestador(getString(record, "cnpj_prestador"))
+                .cpfPrestador(getString(record, "cpf_prestador"))
+
+                // Status
+                .statusPagamento(getString(record, "status_pagamento"))
+                .nomeStatus(getString(record, "nome_status"))
+
+                // Tipo Documento
+                .tipoDocumento(getString(record, "tipo_documento"))
+                .nomeTipoDocumento(getString(record, "nome_tipo_documento"))
+
+                // Centro de Custo
+                .codCentroCusto(getString(record, "cod_centro_custo"))
+                .nomeCentroCusto(getString(record, "nome_centro_custo"))
+
+                // Subcentro de Custo
+                .codSubcentroCusto(getString(record, "cod_subcentro_custo"))
+                .nomeSubcentroCusto(getString(record, "nome_subcentro_custo"))
+
+                // Plano de Conta
+                .planoConta(getString(record, "plano_conta"))
+                .nomePlanoConta(getString(record, "nome_plano_conta"))
+
+                // Setor e Contrato
+                .codSetor(getString(record, "cod_setor"))
+                .contrato(getString(record, "contrato"))
+
+                // Datas
                 .dataEmissao(getLocalDateTime(record, "data_emissao"))
                 .dataVencimento(getLocalDateTime(record, "data_vencimento"))
                 .dataEntrada(getLocalDateTime(record, "data_entrada"))
                 .dataCadastro(getLocalDateTime(record, "data_cadastro"))
                 .dataAlteracao(getLocalDateTime(record, "data_alteracao"))
-                .historico(getString(record, "historico"))
-                .observacao(getString(record, "observacao"))
-                .tipoDocumento(getString(record, "tipo_documento"))
-                .tipoTitulo(getString(record, "tipo_titulo"))
-                .operacao(getString(record, "operacao"))
-                .formaPagamento(getString(record, "forma_pagamento"))
-                .opcaoPagamento(getString(record, "opcao_pagamento"))
-                .situacaoTitulo(getString(record, "situacao_titulo"))
-                .statusPagamento(getString(record, "status_pagamento"))
-                .isProvisao(getBoolean(record, "is_provisao"))
+
+                // Valores
                 .valorTitulo(getBigDecimal(record, "valor_titulo"))
                 .valorPago(getBigDecimal(record, "valor_pago"))
                 .valorSaldo(getBigDecimal(record, "valor_saldo"))
@@ -184,6 +223,19 @@ public class AccountPayableService {
                 .valorMovimento(getBigDecimal(record, "valor_movimento"))
                 .valorOutras(getBigDecimal(record, "valor_outras"))
                 .atualizacaoMonetaria(getBigDecimal(record, "atualizacao_monetaria"))
+
+                // Flags
+                .isPagoTotal(getBoolean(record, "is_pago_total"))
+                .isProvisao(getBoolean(record, "is_provisao"))
+
+                // Classificação
+                .situacaoTitulo(getString(record, "situacao_titulo"))
+                .tipoTitulo(getString(record, "tipo_titulo"))
+                .operacao(getString(record, "operacao"))
+                .formaPagamento(getString(record, "forma_pagamento"))
+                .opcaoPagamento(getString(record, "opcao_pagamento"))
+
+                // Parcela / Competência
                 .numeroParcela(getString(record, "numero_parcela"))
                 .mesCompetencia(getString(record, "mes_competencia"))
                 .periodo(getString(record, "periodo"))
@@ -191,15 +243,24 @@ public class AccountPayableService {
                 .periodoReferencia(getString(record, "periodo_referencia"))
                 .anoCalculo(getInteger(record, "ano_calculo"))
                 .diasAtraso(getInteger(record, "dias_atraso"))
+
+                // Texto / Histórico
+                .historico(getString(record, "historico"))
+                .observacao(getString(record, "observacao"))
+
+                // Fiscal
                 .documentoContribuinte(getString(record, "documento_contribuinte"))
                 .inscricaoEstadual(getString(record, "inscricao_estadual"))
                 .codMunicipio(getString(record, "cod_municipio"))
                 .uf(getString(record, "uf"))
+
+                // Auditoria
                 .contadorPagamento(getInteger(record, "contador_pagamento"))
                 .operadorCadastro(getString(record, "operador_cadastro"))
                 .operadorAlteracao(getString(record, "operador_alteracao"))
+
+                // Metadados
                 .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
-                .isPagoTotal(getBoolean(record, "is_pago_total"))
                 .build();
 
         return anonymizeData
@@ -376,7 +437,11 @@ public class AccountPayableService {
         return new PageImpl<>(sorted.subList(start, end), pageable, sorted.size());
     }
 
-    private PageResponse<AccountPayable> toPageResponse(Page<AccountPayable> page) {
+    private PageResponse<AccountPayableResponse> toPageResponse(Page<AccountPayable> page) {
+        List<AccountPayableResponse> content = page.getContent().stream()
+                .map(AccountPayableResponse::from)
+                .toList();
+
         return new PageResponse<>(
                 new Pagination(
                         page.getNumber(),
@@ -384,7 +449,262 @@ public class AccountPayableService {
                         page.getTotalElements(),
                         page.getTotalPages()
                 ),
-                page.getContent()
+                content
         );
+    }
+
+    public QueryResponse executeQuery(String query) {
+        long startTime = System.currentTimeMillis();
+
+        List<AccountPayable> allData = self().loadAll();
+
+        // Parser simples da query
+        QueryParser parsed = parseQuery(query);
+
+        // Aplica filtros
+        List<AccountPayable> filtered = allData.stream()
+                .filter(ap -> matchesQueryFilters(ap, parsed))
+                .toList();
+
+        // Aplica agregação ou seleção
+        List<Map<String, Object>> result;
+        List<String> columns;
+
+        if (parsed.hasAggregation()) {
+            result = executeAggregation(filtered, parsed);
+            columns = parsed.getSelectColumns();
+        } else {
+            result = selectColumns(filtered, parsed);
+            columns = parsed.getSelectColumns();
+        }
+
+        // Aplica limit
+        if (parsed.getLimit() > 0 && result.size() > parsed.getLimit()) {
+            result = result.subList(0, parsed.getLimit());
+        }
+
+        long executionTime = System.currentTimeMillis() - startTime;
+
+        return QueryResponse.builder()
+                .columns(columns)
+                .data(result)
+                .totalRecords(result.size())
+                .executedQuery(query)
+                .executionTimeMs(executionTime)
+                .build();
+    }
+
+    private QueryParser parseQuery(String query) {
+        return new QueryParser(query);
+    }
+
+    private boolean matchesQueryFilters(AccountPayable ap, QueryParser parsed) {
+        for (QueryFilter filter : parsed.getFilters()) {
+            Object value = getFieldValue(ap, filter.getField());
+            if (!filter.matches(value)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private List<Map<String, Object>> executeAggregation(List<AccountPayable> data, QueryParser parsed) {
+        String groupByField = parsed.getGroupByColumn();
+
+        // Se tem GROUP BY, agrupa os dados
+        if (groupByField != null && !groupByField.isEmpty()) {
+            return executeGroupedAggregation(data, parsed, groupByField);
+        }
+
+        // Sem GROUP BY, retorna agregação única (comportamento atual)
+        Map<String, Object> result = new HashMap<>();
+
+        for (String col : parsed.getSelectColumns()) {
+            if (col.toUpperCase().startsWith("SUM(")) {
+                String field = col.substring(4, col.length() - 1);
+                BigDecimal sum = data.stream()
+                        .map(ap -> getBigDecimalField(ap, field))
+                        .filter(Objects::nonNull)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                result.put(col, sum);
+            } else if (col.toUpperCase().startsWith("COUNT(")) {
+                result.put(col, data.size());
+            } else if (col.toUpperCase().startsWith("AVG(")) {
+                String field = col.substring(4, col.length() - 1);
+                BigDecimal sum = data.stream()
+                        .map(ap -> getBigDecimalField(ap, field))
+                        .filter(Objects::nonNull)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal avg = data.isEmpty() ? BigDecimal.ZERO :
+                        sum.divide(BigDecimal.valueOf(data.size()), 2, RoundingMode.HALF_UP);
+                result.put(col, avg);
+            } else if (col.toUpperCase().startsWith("MIN(")) {
+                String field = col.substring(4, col.length() - 1);
+                BigDecimal min = data.stream()
+                        .map(ap -> getBigDecimalField(ap, field))
+                        .filter(Objects::nonNull)
+                        .min(BigDecimal::compareTo)
+                        .orElse(null);
+                result.put(col, min);
+            } else if (col.toUpperCase().startsWith("MAX(")) {
+                String field = col.substring(4, col.length() - 1);
+                BigDecimal max = data.stream()
+                        .map(ap -> getBigDecimalField(ap, field))
+                        .filter(Objects::nonNull)
+                        .max(BigDecimal::compareTo)
+                        .orElse(null);
+                result.put(col, max);
+            }
+        }
+
+        return List.of(result);
+    }
+
+    private List<Map<String, Object>> executeGroupedAggregation(List<AccountPayable> data, QueryParser parsed, String groupByField) {
+        // Agrupa os dados pelo campo
+        Map<Object, List<AccountPayable>> grouped = data.stream()
+                .collect(Collectors.groupingBy(ap -> {
+                    Object value = getFieldValue(ap, groupByField.toLowerCase());
+                    return value != null ? value : "NULL";
+                }));
+
+        List<Map<String, Object>> results = new ArrayList<>();
+
+        for (Map.Entry<Object, List<AccountPayable>> entry : grouped.entrySet()) {
+            Map<String, Object> row = new HashMap<>();
+            List<AccountPayable> groupData = entry.getValue();
+
+            // Adiciona o campo do GROUP BY
+            row.put(groupByField, entry.getKey());
+
+            // Calcula agregações para cada grupo
+            for (String col : parsed.getSelectColumns()) {
+                String colUpper = col.toUpperCase();
+
+                if (colUpper.startsWith("SUM(")) {
+                    String field = col.substring(4, col.length() - 1);
+                    BigDecimal sum = groupData.stream()
+                            .map(ap -> getBigDecimalField(ap, field))
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    row.put(col, sum);
+                } else if (colUpper.startsWith("COUNT(")) {
+                    row.put(col, groupData.size());
+                } else if (colUpper.startsWith("AVG(")) {
+                    String field = col.substring(4, col.length() - 1);
+                    BigDecimal sum = groupData.stream()
+                            .map(ap -> getBigDecimalField(ap, field))
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal avg = groupData.isEmpty() ? BigDecimal.ZERO :
+                            sum.divide(BigDecimal.valueOf(groupData.size()), 2, RoundingMode.HALF_UP);
+                    row.put(col, avg);
+                } else if (colUpper.startsWith("MIN(")) {
+                    String field = col.substring(4, col.length() - 1);
+                    BigDecimal min = groupData.stream()
+                            .map(ap -> getBigDecimalField(ap, field))
+                            .filter(Objects::nonNull)
+                            .min(BigDecimal::compareTo)
+                            .orElse(null);
+                    row.put(col, min);
+                } else if (colUpper.startsWith("MAX(")) {
+                    String field = col.substring(4, col.length() - 1);
+                    BigDecimal max = groupData.stream()
+                            .map(ap -> getBigDecimalField(ap, field))
+                            .filter(Objects::nonNull)
+                            .max(BigDecimal::compareTo)
+                            .orElse(null);
+                    row.put(col, max);
+                }
+            }
+
+            results.add(row);
+        }
+
+        // Ordena pelo campo do GROUP BY
+        results.sort((a, b) -> {
+            Object valA = a.get(groupByField);
+            Object valB = b.get(groupByField);
+            if (valA instanceof Comparable && valB instanceof Comparable) {
+                return ((Comparable) valA).compareTo(valB);
+            }
+            return String.valueOf(valA).compareTo(String.valueOf(valB));
+        });
+
+        return results;
+    }
+
+    private List<Map<String, Object>> selectColumns(List<AccountPayable> data, QueryParser parsed) {
+        List<String> columns = parsed.getSelectColumns();
+        boolean selectAll = columns.contains("*");
+
+        return data.stream()
+                .map(ap -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    if (selectAll) {
+                        row.put("codigoTitulo", ap.getCodigoTitulo());
+                        row.put("nomeFornecedor", ap.getNomeFornecedor());
+                        row.put("valorTitulo", ap.getValorTitulo());
+                        row.put("valorSaldo", ap.getValorSaldo());
+                        row.put("dataVencimento", ap.getDataVencimento());
+                        row.put("isPagoTotal", ap.getIsPagoTotal());
+                    } else {
+                        for (String col : columns) {
+                            row.put(col, getFieldValue(ap, col));
+                        }
+                    }
+                    return row;
+                })
+                .toList();
+    }
+
+    private Object getFieldValue(AccountPayable ap, String field) {
+        return switch (field.toLowerCase()) {
+            case "codigotitulo" -> ap.getCodigoTitulo();
+            case "codigocompra" -> ap.getCodigoCompra();
+            case "codempresa" -> ap.getCodEmpresa();
+            case "nomeempresa" -> ap.getNomeEmpresa();
+            case "codfornecedor" -> ap.getCodFornecedor();
+            case "nomefornecedor" -> ap.getNomeFornecedor();
+            case "cnpjfornecedor" -> ap.getCnpjFornecedor();
+            case "cpffornecedor" -> ap.getCpfFornecedor();
+            case "codcentrocusto" -> ap.getCodCentroCusto();
+            case "nomecentrocusto" -> ap.getNomeCentroCusto();
+            case "planoconta" -> ap.getPlanoConta();
+            case "nomeplanoconta" -> ap.getNomePlanoConta();
+            case "statuspagamento" -> ap.getStatusPagamento();
+            case "dataemissao" -> ap.getDataEmissao();
+            case "datavencimento" -> ap.getDataVencimento();
+            case "valortitulo" -> ap.getValorTitulo();
+            case "valorpago" -> ap.getValorPago();
+            case "valorsaldo" -> ap.getValorSaldo();
+            case "valorbruto" -> ap.getValorBruto();
+            case "valordesconto" -> ap.getValorDesconto();
+            case "valoracrescimo" -> ap.getValorAcrescimo();
+            case "ispagototal" -> ap.getIsPagoTotal();
+            case "isprovisao" -> ap.getIsProvisao();
+            case "tipotitulo" -> ap.getTipoTitulo();
+            case "operacao" -> ap.getOperacao();
+            case "formapagamento" -> ap.getFormaPagamento();
+            case "numeroparcela" -> ap.getNumeroParcela();
+            case "diasatraso" -> ap.getDiasAtraso();
+            case "historico" -> ap.getHistorico();
+            case "uf" -> ap.getUf();
+            default -> null;
+        };
+    }
+
+    private BigDecimal getBigDecimalField(AccountPayable ap, String field) {
+        return switch (field.toLowerCase()) {
+            case "valortitulo" -> ap.getValorTitulo();
+            case "valorpago" -> ap.getValorPago();
+            case "valorsaldo" -> ap.getValorSaldo();
+            case "valorbruto" -> ap.getValorBruto();
+            case "valordesconto" -> ap.getValorDesconto();
+            case "valoracrescimo" -> ap.getValorAcrescimo();
+            case "valormovimento" -> ap.getValorMovimento();
+            case "valoroutras" -> ap.getValorOutras();
+            default -> null;
+        };
     }
 }

@@ -17,42 +17,59 @@ public class AccountPayableAnonymizer {
         }
 
         return AccountPayable.builder()
-                // Identificação - gera novos códigos
+                // Identificação
                 .codigoTitulo(generateCode("TIT"))
                 .codigoCompra(generateCode("CMP"))
 
-                // Vínculos - mantém estrutura mas anonimiza
+                // Empresa - mantém código, anonimiza nome
                 .codEmpresa(original.getCodEmpresa())
-                .codFornecedor(generateCode("FOR"))
-                .codCentroCusto(original.getCodCentroCusto())
-                .codSubcentroCusto(original.getCodSubcentroCusto())
-                .codSetor(original.getCodSetor())
-                .planoConta(original.getPlanoConta())
-                .contrato(generateCode("CTR"))
-                .prestador(anonymizeText("Prestador"))
+                .nomeEmpresa(anonymizeText("Empresa"))
 
-                // Datas - mantém as originais
+                // Fornecedor - anonimiza tudo
+                .codFornecedor(generateCode("FOR"))
+                .nomeFornecedor(anonymizeText("Fornecedor"))
+                .fantasiaFornecedor(anonymizeText("Fantasia"))
+                .cnpjFornecedor(anonymizeCnpj())
+                .cpfFornecedor(anonymizeCpf())
+
+                // Transportador
+                .transportador(generateCode("TRA"))
+                .nomeTransportador(anonymizeText("Transportador"))
+
+                // Prestador
+                .prestador(generateCode("PRE"))
+                .nomePrestador(anonymizeText("Prestador"))
+
+                // Status - mantém código, anonimiza nome
+                .statusPagamento(original.getStatusPagamento())
+                .nomeStatus(original.getNomeStatus())
+
+                // Tipo Documento - mantém
+                .tipoDocumento(original.getTipoDocumento())
+                .nomeTipoDocumento(original.getNomeTipoDocumento())
+
+                // Centro de Custo - mantém código, anonimiza nome
+                .codCentroCusto(original.getCodCentroCusto())
+                .nomeCentroCusto(anonymizeText("Centro Custo"))
+
+                // Subcentro de Custo - mantém código, anonimiza nome
+                .codSubcentroCusto(original.getCodSubcentroCusto())
+                .nomeSubcentroCusto(anonymizeText("Subcentro"))
+
+                // Plano de Conta - mantém código, anonimiza nome
+                .planoConta(original.getPlanoConta())
+                .nomePlanoConta(anonymizeText("Plano Conta"))
+
+                // Setor e Contrato
+                .codSetor(original.getCodSetor())
+                .contrato(generateCode("CTR"))
+
+                // Datas - mantém
                 .dataEmissao(original.getDataEmissao())
                 .dataVencimento(original.getDataVencimento())
                 .dataEntrada(original.getDataEntrada())
                 .dataCadastro(original.getDataCadastro())
                 .dataAlteracao(original.getDataAlteracao())
-
-                // Texto / Histórico - anonimiza completamente
-                .historico(anonymizeText("Histórico"))
-                .observacao(anonymizeText("Observação"))
-
-                // Classificação - mantém
-                .tipoDocumento(original.getTipoDocumento())
-                .tipoTitulo(original.getTipoTitulo())
-                .operacao(original.getOperacao())
-                .formaPagamento(original.getFormaPagamento())
-                .opcaoPagamento(original.getOpcaoPagamento())
-
-                // Status - mantém
-                .situacaoTitulo(original.getSituacaoTitulo())
-                .statusPagamento(original.getStatusPagamento())
-                .isProvisao(original.getIsProvisao())
 
                 // Valores - randomiza
                 .valorTitulo(randomizeValue(original.getValorTitulo()))
@@ -65,6 +82,17 @@ public class AccountPayableAnonymizer {
                 .valorOutras(randomizeValue(original.getValorOutras()))
                 .atualizacaoMonetaria(randomizeValue(original.getAtualizacaoMonetaria()))
 
+                // Flags - mantém
+                .isPagoTotal(original.getIsPagoTotal())
+                .isProvisao(original.getIsProvisao())
+
+                // Classificação - mantém
+                .situacaoTitulo(original.getSituacaoTitulo())
+                .tipoTitulo(original.getTipoTitulo())
+                .operacao(original.getOperacao())
+                .formaPagamento(original.getFormaPagamento())
+                .opcaoPagamento(original.getOpcaoPagamento())
+
                 // Parcela / Competência - mantém
                 .numeroParcela(original.getNumeroParcela())
                 .mesCompetencia(original.getMesCompetencia())
@@ -74,9 +102,13 @@ public class AccountPayableAnonymizer {
                 .anoCalculo(original.getAnoCalculo())
                 .diasAtraso(original.getDiasAtraso())
 
-                // Fiscal - anonimiza dados sensíveis
+                // Texto / Histórico - anonimiza
+                .historico(anonymizeText("Histórico"))
+                .observacao(anonymizeText("Observação"))
+
+                // Fiscal - anonimiza
                 .documentoContribuinte(anonymizeCpfCnpj(original.getDocumentoContribuinte()))
-                .inscricaoEstadual(anonymizeInscricao(original.getInscricaoEstadual()))
+                .inscricaoEstadual("ISENTO")
                 .codMunicipio(original.getCodMunicipio())
                 .uf(original.getUf())
 
@@ -87,7 +119,6 @@ public class AccountPayableAnonymizer {
 
                 // Metadados - mantém
                 .snapshotDatetime(original.getSnapshotDatetime())
-                .isPagoTotal(original.getIsPagoTotal())
                 .build();
     }
 
@@ -103,9 +134,19 @@ public class AccountPayableAnonymizer {
         if (original == null) {
             return null;
         }
-        double factor = 0.5 + random.nextDouble(); // entre 0.5x e 1.5x
+        double factor = 0.5 + random.nextDouble();
         return original.multiply(BigDecimal.valueOf(factor))
                 .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static String anonymizeCpf() {
+        return String.format("%03d.***.**%d-%02d",
+                random.nextInt(1000), random.nextInt(10), random.nextInt(100));
+    }
+
+    private static String anonymizeCnpj() {
+        return String.format("%02d.***.***/%04d-%02d",
+                random.nextInt(100), random.nextInt(10000), random.nextInt(100));
     }
 
     private static String anonymizeCpfCnpj(String documento) {
@@ -113,18 +154,6 @@ public class AccountPayableAnonymizer {
             return null;
         }
         int length = documento.replaceAll("\\D", "").length();
-        if (length == 11) {
-            return String.format("%03d.***.**%d-%02d",
-                    random.nextInt(1000), random.nextInt(10), random.nextInt(100));
-        }
-        return String.format("%02d.***.***/%04d-%02d",
-                random.nextInt(100), random.nextInt(10000), random.nextInt(100));
-    }
-
-    private static String anonymizeInscricao(String inscricao) {
-        if (inscricao == null || inscricao.isBlank()) {
-            return null;
-        }
-        return "ISENTO";
+        return length == 11 ? anonymizeCpf() : anonymizeCnpj();
     }
 }

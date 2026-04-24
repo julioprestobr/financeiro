@@ -15,9 +15,6 @@ public class ClientConfig {
     @Value("${s3.bucket-name}")
     private String bucketName;
 
-    @Value("${datalake.silver-account-payable-base-prefix}")
-    private String silverAccountPayableBasePrefix;
-
     @Value("${datalake.gold-account-payable-base-prefix}")
     private String goldAccountPayableBasePrefix;
 
@@ -29,7 +26,6 @@ public class ClientConfig {
         return new DataLakeClient(
                 s3Client,
                 bucketName,
-                silverAccountPayableBasePrefix,
                 goldAccountPayableBasePrefix
         );
     }

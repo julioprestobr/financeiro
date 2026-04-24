@@ -23,34 +23,19 @@ public class DataLakeClient {
 
     private final S3Client s3Client;
     private final String bucketName;
-    private final String silverAccountPayableBasePrefix;
     private final String goldAccountPayableBasePrefix;
 
     public DataLakeClient(
             S3Client s3Client,
             String bucketName,
-            String silverAccountPayableBasePrefix,
             String goldAccountPayableBasePrefix
     ) {
         this.s3Client = s3Client;
         this.bucketName = bucketName;
-        this.silverAccountPayableBasePrefix = silverAccountPayableBasePrefix;
         this.goldAccountPayableBasePrefix = goldAccountPayableBasePrefix;
     }
 
-    // =========================================================================
-    // SILVER (AccountPayable)
-    // =========================================================================
-
     public List<String> findLatestRunParquetKeys() {
-        return findLatestRunParquetKeysFromPrefix(silverAccountPayableBasePrefix);
-    }
-
-    // =========================================================================
-    // GOLD (AccountPayableEnriched)
-    // =========================================================================
-
-    public List<String> findLatestRunEnrichedParquetKeys() {
         return findLatestRunParquetKeysFromPrefix(goldAccountPayableBasePrefix);
     }
 
@@ -147,10 +132,6 @@ public class DataLakeClient {
 
     public String getBucketName() {
         return bucketName;
-    }
-
-    public String getSilverAccountPayableBasePrefix() {
-        return silverAccountPayableBasePrefix;
     }
 
     public String getGoldAccountPayableBasePrefix() {

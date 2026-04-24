@@ -14,6 +14,9 @@ public record AccountPayablePageRequest(
         @Schema(description = "Código do título")
         String titleCode,
 
+        @Schema(description = "Código da empresa")
+        String codEmpresa,
+
         @Schema(description = "Código do fornecedor")
         String vendorCode,
 
