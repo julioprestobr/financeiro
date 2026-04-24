@@ -72,7 +72,7 @@ public class AccountPayableService {
 
     public AccountPayableResponse getByCodigoTitulo(String codigoTitulo) {
         return self().loadAll().stream()
-                .filter(ap -> codigoTitulo.equals(ap.getCodigoTitulo()))
+                .filter(ap -> codigoTitulo.equals(ap.getTitleCode()))
                 .findFirst()
                 .map(AccountPayableResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -154,110 +154,110 @@ public class AccountPayableService {
 
         AccountPayable original = AccountPayable.builder()
                 // Identificação
-                .codigoTitulo(getString(record, "codigo_titulo"))
-                .codigoCompra(getString(record, "codigo_compra"))
+                .titleCode(getString(record, "codigo_titulo"))
+                .purchaseCode(getString(record, "codigo_compra"))
 
                 // Empresa
-                .codEmpresa(getString(record, "cod_empresa"))
-                .nomeEmpresa(getString(record, "nome_empresa"))
+                .companyCode(getString(record, "cod_empresa"))
+                .companyName(getString(record, "nome_empresa"))
 
                 // Fornecedor
-                .codFornecedor(getString(record, "cod_fornecedor"))
-                .nomeFornecedor(getString(record, "nome_fornecedor"))
-                .fantasiaFornecedor(getString(record, "fantasia_fornecedor"))
-                .cnpjFornecedor(getString(record, "cnpj_fornecedor"))
-                .cpfFornecedor(getString(record, "cpf_fornecedor"))
+                .vendorCode(getString(record, "cod_fornecedor"))
+                .vendorName(getString(record, "nome_fornecedor"))
+                .vendorTradeName(getString(record, "fantasia_fornecedor"))
+                .vendorCnpj(getString(record, "cnpj_fornecedor"))
+                .vendorCpf(getString(record, "cpf_fornecedor"))
 
                 // Transportador
-                .transportador(getString(record, "transportador"))
-                .nomeTransportador(getString(record, "nome_transportador"))
-                .fantasiaTransportador(getString(record, "fantasia_transportador"))
-                .cnpjTransportador(getString(record, "cnpj_transportador"))
-                .cpfTransportador(getString(record, "cpf_transportador"))
+                .carrierCode(getString(record, "carrierCode"))
+                .carrierName(getString(record, "nome_transportador"))
+                .carrierTradeName(getString(record, "fantasia_transportador"))
+                .carrierCnpj(getString(record, "cnpj_transportador"))
+                .carrierCpf(getString(record, "cpf_transportador"))
 
                 // Prestador
-                .prestador(getString(record, "prestador"))
-                .nomePrestador(getString(record, "nome_prestador"))
-                .fantasiaPrestador(getString(record, "fantasia_prestador"))
-                .cnpjPrestador(getString(record, "cnpj_prestador"))
-                .cpfPrestador(getString(record, "cpf_prestador"))
+                .providerCode(getString(record, "providerCode"))
+                .providerName(getString(record, "nome_prestador"))
+                .providerTradeName(getString(record, "fantasia_prestador"))
+                .providerCnpj(getString(record, "cnpj_prestador"))
+                .providerCpf(getString(record, "cpf_prestador"))
 
                 // Status
-                .statusPagamento(getString(record, "status_pagamento"))
-                .nomeStatus(getString(record, "nome_status"))
+                .paymentStatus(getString(record, "status_pagamento"))
+                .statusName(getString(record, "nome_status"))
 
                 // Tipo Documento
-                .tipoDocumento(getString(record, "tipo_documento"))
-                .nomeTipoDocumento(getString(record, "nome_tipo_documento"))
+                .documentType(getString(record, "tipo_documento"))
+                .documentTypeName(getString(record, "nome_tipo_documento"))
 
                 // Centro de Custo
-                .codCentroCusto(getString(record, "cod_centro_custo"))
-                .nomeCentroCusto(getString(record, "nome_centro_custo"))
+                .costCenterCode(getString(record, "cod_centro_custo"))
+                .costCenterName(getString(record, "nome_centro_custo"))
 
                 // Subcentro de Custo
-                .codSubcentroCusto(getString(record, "cod_subcentro_custo"))
-                .nomeSubcentroCusto(getString(record, "nome_subcentro_custo"))
+                .subCostCenterCode(getString(record, "cod_subcentro_custo"))
+                .subCostCenterName(getString(record, "nome_subcentro_custo"))
 
                 // Plano de Conta
-                .planoConta(getString(record, "plano_conta"))
-                .nomePlanoConta(getString(record, "nome_plano_conta"))
+                .accountPlan(getString(record, "plano_conta"))
+                .accountPlanName(getString(record, "nome_plano_conta"))
 
                 // Setor e Contrato
-                .codSetor(getString(record, "cod_setor"))
-                .contrato(getString(record, "contrato"))
+                .departmentCode(getString(record, "cod_setor"))
+                .contract(getString(record, "contract"))
 
                 // Datas
-                .dataEmissao(getLocalDateTime(record, "data_emissao"))
-                .dataVencimento(getLocalDateTime(record, "data_vencimento"))
-                .dataEntrada(getLocalDateTime(record, "data_entrada"))
-                .dataCadastro(getLocalDateTime(record, "data_cadastro"))
-                .dataAlteracao(getLocalDateTime(record, "data_alteracao"))
+                .emissionDate(getLocalDateTime(record, "data_emissao"))
+                .dueDate(getLocalDateTime(record, "data_vencimento"))
+                .entryDate(getLocalDateTime(record, "data_entrada"))
+                .createdAt(getLocalDateTime(record, "data_cadastro"))
+                .updatedAt(getLocalDateTime(record, "data_alteracao"))
 
                 // Valores
-                .valorTitulo(getBigDecimal(record, "valor_titulo"))
-                .valorPago(getBigDecimal(record, "valor_pago"))
-                .valorSaldo(getBigDecimal(record, "valor_saldo"))
-                .valorBruto(getBigDecimal(record, "valor_bruto"))
-                .valorDesconto(getBigDecimal(record, "valor_desconto"))
-                .valorAcrescimo(getBigDecimal(record, "valor_acrescimo"))
-                .valorMovimento(getBigDecimal(record, "valor_movimento"))
-                .valorOutras(getBigDecimal(record, "valor_outras"))
-                .atualizacaoMonetaria(getBigDecimal(record, "atualizacao_monetaria"))
+                .titleValue(getBigDecimal(record, "valor_titulo"))
+                .paidValue(getBigDecimal(record, "valor_pago"))
+                .balanceValue(getBigDecimal(record, "valor_saldo"))
+                .grossValue(getBigDecimal(record, "valor_bruto"))
+                .discountValue(getBigDecimal(record, "valor_desconto"))
+                .surchargeValue(getBigDecimal(record, "valor_acrescimo"))
+                .movementValue(getBigDecimal(record, "valor_movimento"))
+                .otherValues(getBigDecimal(record, "valor_outras"))
+                .monetaryCorrection(getBigDecimal(record, "atualizacao_monetaria"))
 
                 // Flags
-                .isPagoTotal(getBoolean(record, "is_pago_total"))
-                .isProvisao(getBoolean(record, "is_provisao"))
+                .isFullyPaid(getBoolean(record, "is_pago_total"))
+                .isProvision(getBoolean(record, "is_provisao"))
 
                 // Classificação
-                .situacaoTitulo(getString(record, "situacao_titulo"))
-                .tipoTitulo(getString(record, "tipo_titulo"))
-                .operacao(getString(record, "operacao"))
-                .formaPagamento(getString(record, "forma_pagamento"))
-                .opcaoPagamento(getString(record, "opcao_pagamento"))
+                .titleStatus(getString(record, "situacao_titulo"))
+                .titleType(getString(record, "tipo_titulo"))
+                .operation(getString(record, "operation"))
+                .paymentMethod(getString(record, "forma_pagamento"))
+                .paymentOption(getString(record, "opcao_pagamento"))
 
                 // Parcela / Competência
-                .numeroParcela(getString(record, "numero_parcela"))
-                .mesCompetencia(getString(record, "mes_competencia"))
-                .periodo(getString(record, "periodo"))
-                .periodoApuracao(getString(record, "periodo_apuracao"))
-                .periodoReferencia(getString(record, "periodo_referencia"))
-                .anoCalculo(getInteger(record, "ano_calculo"))
-                .diasAtraso(getInteger(record, "dias_atraso"))
+                .installmentNumber(getString(record, "numero_parcela"))
+                .referenceMonth(getString(record, "mes_competencia"))
+                .period(getString(record, "period"))
+                .assessmentPeriod(getString(record, "periodo_apuracao"))
+                .referencePeriod(getString(record, "periodo_referencia"))
+                .calculationYear(getInteger(record, "ano_calculo"))
+                .daysOverdue(getInteger(record, "dias_atraso"))
 
                 // Texto / Histórico
-                .historico(getString(record, "historico"))
-                .observacao(getString(record, "observacao"))
+                .description(getString(record, "description"))
+                .notes(getString(record, "notes"))
 
                 // Fiscal
-                .documentoContribuinte(getString(record, "documento_contribuinte"))
-                .inscricaoEstadual(getString(record, "inscricao_estadual"))
-                .codMunicipio(getString(record, "cod_municipio"))
-                .uf(getString(record, "uf"))
+                .taxpayerDocument(getString(record, "documento_contribuinte"))
+                .stateRegistration(getString(record, "inscricao_estadual"))
+                .cityCode(getString(record, "cod_municipio"))
+                .state(getString(record, "state"))
 
                 // Auditoria
-                .contadorPagamento(getInteger(record, "contador_pagamento"))
-                .operadorCadastro(getString(record, "operador_cadastro"))
-                .operadorAlteracao(getString(record, "operador_alteracao"))
+                .paymentCounter(getInteger(record, "contador_pagamento"))
+                .createdBy(getString(record, "operador_cadastro"))
+                .updatedBy(getString(record, "operador_alteracao"))
 
                 // Metadados
                 .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
@@ -273,90 +273,90 @@ public class AccountPayableService {
     // =========================================================================
 
     private boolean matchesFilters(AccountPayable ap, AccountPayablePageRequest request) {
-        if ("PENDING".equalsIgnoreCase(request.paymentStatus()) && Boolean.TRUE.equals(ap.getIsPagoTotal())) {
+        if ("PENDING".equalsIgnoreCase(request.paymentStatus()) && Boolean.TRUE.equals(ap.getIsFullyPaid())) {
             return false;
         }
-        if ("PAID".equalsIgnoreCase(request.paymentStatus()) && !Boolean.TRUE.equals(ap.getIsPagoTotal())) {
-            return false;
-        }
-
-        if (request.titleCode() != null && !request.titleCode().equals(ap.getCodigoTitulo())) {
+        if ("PAID".equalsIgnoreCase(request.paymentStatus()) && !Boolean.TRUE.equals(ap.getIsFullyPaid())) {
             return false;
         }
 
-        if (request.vendorCode() != null && !request.vendorCode().equals(ap.getCodFornecedor())) {
+        if (request.titleCode() != null && !request.titleCode().equals(ap.getTitleCode())) {
             return false;
         }
 
-        if (request.providerCode() != null && !request.providerCode().equals(ap.getPrestador())) {
+        if (request.vendorCode() != null && !request.vendorCode().equals(ap.getVendorCode())) {
             return false;
         }
 
-        if (request.installmentNumber() != null && !request.installmentNumber().equals(ap.getNumeroParcela())) {
+        if (request.providerCode() != null && !request.providerCode().equals(ap.getProviderCode())) {
             return false;
         }
 
-        if (request.costCenterCode() != null && !request.costCenterCode().equals(ap.getCodCentroCusto())) {
+        if (request.installmentNumber() != null && !request.installmentNumber().equals(ap.getInstallmentNumber())) {
             return false;
         }
 
-        if (request.subCostCenterCode() != null && !request.subCostCenterCode().equals(ap.getCodSubcentroCusto())) {
+        if (request.costCenterCode() != null && !request.costCenterCode().equals(ap.getCostCenterCode())) {
             return false;
         }
 
-        if (request.departmentCode() != null && !request.departmentCode().equals(ap.getCodSetor())) {
+        if (request.subCostCenterCode() != null && !request.subCostCenterCode().equals(ap.getSubCostCenterCode())) {
             return false;
         }
 
-        if (request.accountPlan() != null && !request.accountPlan().equals(ap.getPlanoConta())) {
+        if (request.departmentCode() != null && !request.departmentCode().equals(ap.getDepartmentCode())) {
             return false;
         }
 
-        if (request.description() != null && ap.getHistorico() != null
-                && !ap.getHistorico().toLowerCase().contains(request.description().toLowerCase())) {
+        if (request.accountPlan() != null && !request.accountPlan().equals(ap.getAccountPlan())) {
             return false;
         }
 
-        if (request.documentType() != null && !request.documentType().equals(ap.getTipoDocumento())) {
+        if (request.description() != null && ap.getDescription() != null
+                && !ap.getDescription().toLowerCase().contains(request.description().toLowerCase())) {
             return false;
         }
 
-        if (request.titleType() != null && !request.titleType().equals(ap.getTipoTitulo())) {
+        if (request.documentType() != null && !request.documentType().equals(ap.getDocumentType())) {
             return false;
         }
 
-        if (request.operation() != null && !request.operation().equals(ap.getOperacao())) {
+        if (request.titleType() != null && !request.titleType().equals(ap.getTitleType())) {
             return false;
         }
 
-        if (request.paymentMethod() != null && !request.paymentMethod().equals(ap.getFormaPagamento())) {
+        if (request.operation() != null && !request.operation().equals(ap.getOperation())) {
             return false;
         }
 
-        if (request.paymentOption() != null && !request.paymentOption().equals(ap.getOpcaoPagamento())) {
+        if (request.paymentMethod() != null && !request.paymentMethod().equals(ap.getPaymentMethod())) {
             return false;
         }
 
-        if (request.emissionDateFrom() != null && ap.getDataEmissao() != null) {
-            if (ap.getDataEmissao().toLocalDate().isBefore(request.emissionDateFrom())) {
+        if (request.paymentOption() != null && !request.paymentOption().equals(ap.getPaymentOption())) {
+            return false;
+        }
+
+        if (request.emissionDateFrom() != null && ap.getEmissionDate() != null) {
+            if (ap.getEmissionDate().toLocalDate().isBefore(request.emissionDateFrom())) {
                 return false;
             }
         }
 
-        if (request.emissionDateTo() != null && ap.getDataEmissao() != null) {
-            if (ap.getDataEmissao().toLocalDate().isAfter(request.emissionDateTo())) {
+        if (request.emissionDateTo() != null && ap.getEmissionDate() != null) {
+            if (ap.getEmissionDate().toLocalDate().isAfter(request.emissionDateTo())) {
                 return false;
             }
         }
 
-        if (request.dueDateFrom() != null && ap.getDataVencimento() != null) {
-            if (ap.getDataVencimento().toLocalDate().isBefore(request.dueDateFrom())) {
+        if (request.dueDateFrom() != null && ap.getDueDate() != null) {
+            if (ap.getDueDate().toLocalDate().isBefore(request.dueDateFrom())) {
                 return false;
             }
         }
 
-        if (request.dueDateTo() != null && ap.getDataVencimento() != null) {
-            if (ap.getDataVencimento().toLocalDate().isAfter(request.dueDateTo())) {
+        if (request.dueDateTo() != null && ap.getDueDate() != null) {
+            if (ap.getDueDate().toLocalDate().isAfter(request.dueDateTo())) {
                 return false;
             }
         }
@@ -414,14 +414,14 @@ public class AccountPayableService {
 
     private Comparator<AccountPayable> getComparator(String field) {
         return switch (field) {
-            case "dataEmissao" -> Comparator.comparing(AccountPayable::getDataEmissao, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dataVencimento" -> Comparator.comparing(AccountPayable::getDataVencimento, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dataEntrada" -> Comparator.comparing(AccountPayable::getDataEntrada, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dataCadastro" -> Comparator.comparing(AccountPayable::getDataCadastro, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dataAlteracao" -> Comparator.comparing(AccountPayable::getDataAlteracao, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "valorTitulo" -> Comparator.comparing(AccountPayable::getValorTitulo, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "numeroParcela" -> Comparator.comparing(AccountPayable::getNumeroParcela, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "diasAtraso" -> Comparator.comparing(AccountPayable::getDiasAtraso, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "emissionDate" -> Comparator.comparing(AccountPayable::getEmissionDate, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dueDate" -> Comparator.comparing(AccountPayable::getDueDate, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "entryDate" -> Comparator.comparing(AccountPayable::getEntryDate, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "createdAt" -> Comparator.comparing(AccountPayable::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "updatedAt" -> Comparator.comparing(AccountPayable::getUpdatedAt, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "titleValue" -> Comparator.comparing(AccountPayable::getTitleValue, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "installmentNumber" -> Comparator.comparing(AccountPayable::getInstallmentNumber, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "daysOverdue" -> Comparator.comparing(AccountPayable::getDaysOverdue, Comparator.nullsLast(Comparator.naturalOrder()));
             default -> null;
         };
     }
@@ -642,12 +642,12 @@ public class AccountPayableService {
                 .map(ap -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     if (selectAll) {
-                        row.put("codigoTitulo", ap.getCodigoTitulo());
-                        row.put("nomeFornecedor", ap.getNomeFornecedor());
-                        row.put("valorTitulo", ap.getValorTitulo());
-                        row.put("valorSaldo", ap.getValorSaldo());
-                        row.put("dataVencimento", ap.getDataVencimento());
-                        row.put("isPagoTotal", ap.getIsPagoTotal());
+                        row.put("titleCode", ap.getTitleCode());
+                        row.put("vendorName", ap.getVendorName());
+                        row.put("titleValue", ap.getTitleValue());
+                        row.put("balanceValue", ap.getBalanceValue());
+                        row.put("dueDate", ap.getDueDate());
+                        row.put("isFullyPaid", ap.getIsFullyPaid());
                     } else {
                         for (String col : columns) {
                             row.put(col, getFieldValue(ap, col));
@@ -660,50 +660,50 @@ public class AccountPayableService {
 
     private Object getFieldValue(AccountPayable ap, String field) {
         return switch (field.toLowerCase()) {
-            case "codigotitulo" -> ap.getCodigoTitulo();
-            case "codigocompra" -> ap.getCodigoCompra();
-            case "codempresa" -> ap.getCodEmpresa();
-            case "nomeempresa" -> ap.getNomeEmpresa();
-            case "codfornecedor" -> ap.getCodFornecedor();
-            case "nomefornecedor" -> ap.getNomeFornecedor();
-            case "cnpjfornecedor" -> ap.getCnpjFornecedor();
-            case "cpffornecedor" -> ap.getCpfFornecedor();
-            case "codcentrocusto" -> ap.getCodCentroCusto();
-            case "nomecentrocusto" -> ap.getNomeCentroCusto();
-            case "planoconta" -> ap.getPlanoConta();
-            case "nomeplanoconta" -> ap.getNomePlanoConta();
-            case "statuspagamento" -> ap.getStatusPagamento();
-            case "dataemissao" -> ap.getDataEmissao();
-            case "datavencimento" -> ap.getDataVencimento();
-            case "valortitulo" -> ap.getValorTitulo();
-            case "valorpago" -> ap.getValorPago();
-            case "valorsaldo" -> ap.getValorSaldo();
-            case "valorbruto" -> ap.getValorBruto();
-            case "valordesconto" -> ap.getValorDesconto();
-            case "valoracrescimo" -> ap.getValorAcrescimo();
-            case "ispagototal" -> ap.getIsPagoTotal();
-            case "isprovisao" -> ap.getIsProvisao();
-            case "tipotitulo" -> ap.getTipoTitulo();
-            case "operacao" -> ap.getOperacao();
-            case "formapagamento" -> ap.getFormaPagamento();
-            case "numeroparcela" -> ap.getNumeroParcela();
-            case "diasatraso" -> ap.getDiasAtraso();
-            case "historico" -> ap.getHistorico();
-            case "uf" -> ap.getUf();
+            case "codigotitulo" -> ap.getTitleCode();
+            case "codigocompra" -> ap.getPurchaseCode();
+            case "codempresa" -> ap.getCompanyCode();
+            case "nomeempresa" -> ap.getCompanyName();
+            case "codfornecedor" -> ap.getVendorCode();
+            case "nomefornecedor" -> ap.getVendorName();
+            case "cnpjfornecedor" -> ap.getVendorCnpj();
+            case "cpffornecedor" -> ap.getVendorCpf();
+            case "codcentrocusto" -> ap.getCostCenterCode();
+            case "nomecentrocusto" -> ap.getCostCenterName();
+            case "planoconta" -> ap.getAccountPlan();
+            case "nomeplanoconta" -> ap.getAccountPlanName();
+            case "statuspagamento" -> ap.getPaymentStatus();
+            case "dataemissao" -> ap.getEmissionDate();
+            case "datavencimento" -> ap.getDueDate();
+            case "valortitulo" -> ap.getTitleValue();
+            case "valorpago" -> ap.getPaidValue();
+            case "valorsaldo" -> ap.getBalanceValue();
+            case "valorbruto" -> ap.getGrossValue();
+            case "valordesconto" -> ap.getDiscountValue();
+            case "valoracrescimo" -> ap.getSurchargeValue();
+            case "ispagototal" -> ap.getIsFullyPaid();
+            case "isprovisao" -> ap.getIsProvision();
+            case "tipotitulo" -> ap.getTitleType();
+            case "operation" -> ap.getOperation();
+            case "formapagamento" -> ap.getPaymentMethod();
+            case "numeroparcela" -> ap.getInstallmentNumber();
+            case "diasatraso" -> ap.getDaysOverdue();
+            case "description" -> ap.getDescription();
+            case "state" -> ap.getState();
             default -> null;
         };
     }
 
     private BigDecimal getBigDecimalField(AccountPayable ap, String field) {
         return switch (field.toLowerCase()) {
-            case "valortitulo" -> ap.getValorTitulo();
-            case "valorpago" -> ap.getValorPago();
-            case "valorsaldo" -> ap.getValorSaldo();
-            case "valorbruto" -> ap.getValorBruto();
-            case "valordesconto" -> ap.getValorDesconto();
-            case "valoracrescimo" -> ap.getValorAcrescimo();
-            case "valormovimento" -> ap.getValorMovimento();
-            case "valoroutras" -> ap.getValorOutras();
+            case "valortitulo" -> ap.getTitleValue();
+            case "valorpago" -> ap.getPaidValue();
+            case "valorsaldo" -> ap.getBalanceValue();
+            case "valorbruto" -> ap.getGrossValue();
+            case "valordesconto" -> ap.getDiscountValue();
+            case "valoracrescimo" -> ap.getSurchargeValue();
+            case "valormovimento" -> ap.getMovementValue();
+            case "valoroutras" -> ap.getOtherValues();
             default -> null;
         };
     }

@@ -13,7 +13,7 @@ public class QueryRequest {
 
     @NotBlank
     @Schema(description = "Query em linguagem natural ou SQL-like",
-            example = "SELECT SUM(valorTitulo) FROM contas WHERE dataVencimento < '2026-04-07'")
+            example = "SELECT SUM(titleValue) FROM contas WHERE dueDate < '2026-04-07'")
     private String query;
 
     @NotBlank

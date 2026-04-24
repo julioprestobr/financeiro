@@ -20,7 +20,7 @@ public class AccountPayableController {
 
     private final AccountPayableService accountPayableService;
 
-    private static final String SORT_DESCRIPTION = "Campos disponíveis para ordenação (sort): dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Direções disponíveis: asc, desc. Exemplo: [\"dataVencimento,asc\",\"valorTitulo,asc\",\"diasAtraso,desc\"]";
+    private static final String SORT_DESCRIPTION = "Campos disponíveis para ordenação (sort): emissionDate, dueDate, entryDate, createdAt, updatedAt, titleValue, installmentNumber, daysOverdue. Direções disponíveis: asc, desc. Exemplo: [\"dueDate,asc\",\"titleValue,asc\",\"daysOverdue,desc\"]";
 
     @PostMapping("/search")
     @Operation(

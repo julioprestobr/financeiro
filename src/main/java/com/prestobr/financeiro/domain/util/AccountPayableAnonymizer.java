@@ -18,110 +18,110 @@ public class AccountPayableAnonymizer {
 
         return AccountPayable.builder()
                 // Identificação
-                .codigoTitulo(generateCode("TIT"))
-                .codigoCompra(generateCode("CMP"))
+                .titleCode(generateCode("TIT"))
+                .purchaseCode(generateCode("CMP"))
 
                 // Empresa - mantém código, anonimiza nome
-                .codEmpresa(original.getCodEmpresa())
-                .nomeEmpresa(anonymizeText("Empresa"))
+                .companyCode(original.getCompanyCode())
+                .companyName(anonymizeText("Empresa"))
 
                 // Fornecedor - anonimiza tudo
-                .codFornecedor(generateCode("FOR"))
-                .nomeFornecedor(anonymizeText("Fornecedor"))
-                .fantasiaFornecedor(anonymizeText("Fantasia"))
-                .cnpjFornecedor(anonymizeCnpj())
-                .cpfFornecedor(anonymizeCpf())
+                .vendorCode(generateCode("FOR"))
+                .vendorName(anonymizeText("Fornecedor"))
+                .vendorTradeName(anonymizeText("Fantasia"))
+                .vendorCnpj(anonymizeCnpj())
+                .vendorCpf(anonymizeCpf())
 
                 // Transportador
-                .transportador(generateCode("TRA"))
-                .nomeTransportador(anonymizeText("Transportador"))
-                .fantasiaTransportador(anonymizeText("Fantasia"))
-                .cnpjTransportador(anonymizeCnpj())
-                .cpfTransportador(anonymizeCpf())
+                .carrierCode(generateCode("TRA"))
+                .carrierName(anonymizeText("Transportador"))
+                .carrierTradeName(anonymizeText("Fantasia"))
+                .carrierCnpj(anonymizeCnpj())
+                .carrierCpf(anonymizeCpf())
 
                 // Prestador
-                .prestador(generateCode("PRE"))
-                .nomePrestador(anonymizeText("Prestador"))
-                .fantasiaPrestador(anonymizeText("Fantasia"))
-                .cnpjPrestador(anonymizeCnpj())
-                .cpfPrestador(anonymizeCpf())
+                .providerCode(generateCode("PRE"))
+                .providerName(anonymizeText("Prestador"))
+                .providerTradeName(anonymizeText("Fantasia"))
+                .providerCnpj(anonymizeCnpj())
+                .providerCpf(anonymizeCpf())
 
                 // Status - mantém código, anonimiza nome
-                .statusPagamento(original.getStatusPagamento())
-                .nomeStatus(original.getNomeStatus())
+                .paymentStatus(original.getPaymentStatus())
+                .statusName(original.getStatusName())
 
                 // Tipo Documento - mantém
-                .tipoDocumento(original.getTipoDocumento())
-                .nomeTipoDocumento(original.getNomeTipoDocumento())
+                .documentType(original.getDocumentType())
+                .documentTypeName(original.getDocumentTypeName())
 
                 // Centro de Custo - mantém código, anonimiza nome
-                .codCentroCusto(original.getCodCentroCusto())
-                .nomeCentroCusto(anonymizeText("Centro Custo"))
+                .costCenterCode(original.getCostCenterCode())
+                .costCenterName(anonymizeText("Centro Custo"))
 
                 // Subcentro de Custo - mantém código, anonimiza nome
-                .codSubcentroCusto(original.getCodSubcentroCusto())
-                .nomeSubcentroCusto(anonymizeText("Subcentro"))
+                .subCostCenterCode(original.getSubCostCenterCode())
+                .subCostCenterName(anonymizeText("Subcentro"))
 
                 // Plano de Conta - mantém código, anonimiza nome
-                .planoConta(original.getPlanoConta())
-                .nomePlanoConta(anonymizeText("Plano Conta"))
+                .accountPlan(original.getAccountPlan())
+                .accountPlanName(anonymizeText("Plano Conta"))
 
                 // Setor e Contrato
-                .codSetor(original.getCodSetor())
-                .contrato(generateCode("CTR"))
+                .departmentCode(original.getDepartmentCode())
+                .contract(generateCode("CTR"))
 
                 // Datas - mantém
-                .dataEmissao(original.getDataEmissao())
-                .dataVencimento(original.getDataVencimento())
-                .dataEntrada(original.getDataEntrada())
-                .dataCadastro(original.getDataCadastro())
-                .dataAlteracao(original.getDataAlteracao())
+                .emissionDate(original.getEmissionDate())
+                .dueDate(original.getDueDate())
+                .entryDate(original.getEntryDate())
+                .createdAt(original.getCreatedAt())
+                .updatedAt(original.getUpdatedAt())
 
                 // Valores - randomiza
-                .valorTitulo(randomizeValue(original.getValorTitulo()))
-                .valorPago(randomizeValue(original.getValorPago()))
-                .valorSaldo(randomizeValue(original.getValorSaldo()))
-                .valorBruto(randomizeValue(original.getValorBruto()))
-                .valorDesconto(randomizeValue(original.getValorDesconto()))
-                .valorAcrescimo(randomizeValue(original.getValorAcrescimo()))
-                .valorMovimento(randomizeValue(original.getValorMovimento()))
-                .valorOutras(randomizeValue(original.getValorOutras()))
-                .atualizacaoMonetaria(randomizeValue(original.getAtualizacaoMonetaria()))
+                .titleValue(randomizeValue(original.getTitleValue()))
+                .paidValue(randomizeValue(original.getPaidValue()))
+                .balanceValue(randomizeValue(original.getBalanceValue()))
+                .grossValue(randomizeValue(original.getGrossValue()))
+                .discountValue(randomizeValue(original.getDiscountValue()))
+                .surchargeValue(randomizeValue(original.getSurchargeValue()))
+                .movementValue(randomizeValue(original.getMovementValue()))
+                .otherValues(randomizeValue(original.getOtherValues()))
+                .monetaryCorrection(randomizeValue(original.getMonetaryCorrection()))
 
                 // Flags - mantém
-                .isPagoTotal(original.getIsPagoTotal())
-                .isProvisao(original.getIsProvisao())
+                .isFullyPaid(original.getIsFullyPaid())
+                .isProvision(original.getIsProvision())
 
                 // Classificação - mantém
-                .situacaoTitulo(original.getSituacaoTitulo())
-                .tipoTitulo(original.getTipoTitulo())
-                .operacao(original.getOperacao())
-                .formaPagamento(original.getFormaPagamento())
-                .opcaoPagamento(original.getOpcaoPagamento())
+                .titleStatus(original.getTitleStatus())
+                .titleType(original.getTitleType())
+                .operation(original.getOperation())
+                .paymentMethod(original.getPaymentMethod())
+                .paymentOption(original.getPaymentOption())
 
                 // Parcela / Competência - mantém
-                .numeroParcela(original.getNumeroParcela())
-                .mesCompetencia(original.getMesCompetencia())
-                .periodo(original.getPeriodo())
-                .periodoApuracao(original.getPeriodoApuracao())
-                .periodoReferencia(original.getPeriodoReferencia())
-                .anoCalculo(original.getAnoCalculo())
-                .diasAtraso(original.getDiasAtraso())
+                .installmentNumber(original.getInstallmentNumber())
+                .referenceMonth(original.getReferenceMonth())
+                .period(original.getPeriod())
+                .assessmentPeriod(original.getAssessmentPeriod())
+                .referencePeriod(original.getReferencePeriod())
+                .calculationYear(original.getCalculationYear())
+                .daysOverdue(original.getDaysOverdue())
 
                 // Texto / Histórico - anonimiza
-                .historico(anonymizeText("Histórico"))
-                .observacao(anonymizeText("Observação"))
+                .description(anonymizeText("Histórico"))
+                .notes(anonymizeText("Observação"))
 
                 // Fiscal - anonimiza
-                .documentoContribuinte(anonymizeCpfCnpj(original.getDocumentoContribuinte()))
-                .inscricaoEstadual("ISENTO")
-                .codMunicipio(original.getCodMunicipio())
-                .uf(original.getUf())
+                .taxpayerDocument(anonymizeCpfCnpj(original.getTaxpayerDocument()))
+                .stateRegistration("ISENTO")
+                .cityCode(original.getCityCode())
+                .state(original.getState())
 
                 // Auditoria - anonimiza operadores
-                .contadorPagamento(original.getContadorPagamento())
-                .operadorCadastro(anonymizeText("Operador"))
-                .operadorAlteracao(anonymizeText("Operador"))
+                .paymentCounter(original.getPaymentCounter())
+                .createdBy(anonymizeText("Operador"))
+                .updatedBy(anonymizeText("Operador"))
 
                 // Metadados - mantém
                 .snapshotDatetime(original.getSnapshotDatetime())

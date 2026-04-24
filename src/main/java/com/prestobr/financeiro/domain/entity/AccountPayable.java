@@ -17,146 +17,146 @@ public class AccountPayable {
     // =========================================================================
     // IDENTIFICAÇÃO
     // =========================================================================
-    private String codigoTitulo;
-    private String codigoCompra;
+    private String titleCode;
+    private String purchaseCode;
 
     // =========================================================================
     // EMPRESA
     // =========================================================================
-    private String codEmpresa;
-    private String nomeEmpresa;
+    private String companyCode;
+    private String companyName;
 
     // =========================================================================
     // FORNECEDOR
     // =========================================================================
-    private String codFornecedor;
-    private String nomeFornecedor;
-    private String fantasiaFornecedor;
-    private String cnpjFornecedor;
-    private String cpfFornecedor;
+    private String vendorCode;
+    private String vendorName;
+    private String vendorTradeName;
+    private String vendorCnpj;
+    private String vendorCpf;
 
     // =========================================================================
     // TRANSPORTADOR
     // =========================================================================
-    private String transportador;
-    private String nomeTransportador;
-    private String fantasiaTransportador;
-    private String cnpjTransportador;
-    private String cpfTransportador;
+    private String carrierCode;
+    private String carrierName;
+    private String carrierTradeName;
+    private String carrierCnpj;
+    private String carrierCpf;
 
     // =========================================================================
     // PRESTADOR
     // =========================================================================
-    private String prestador;
-    private String nomePrestador;
-    private String fantasiaPrestador;
-    private String cnpjPrestador;
-    private String cpfPrestador;
+    private String providerCode;
+    private String providerName;
+    private String providerTradeName;
+    private String providerCnpj;
+    private String providerCpf;
 
     // =========================================================================
     // STATUS
     // =========================================================================
-    private String statusPagamento;
-    private String nomeStatus;
+    private String paymentStatus;
+    private String statusName;
 
     // =========================================================================
     // TIPO DOCUMENTO
     // =========================================================================
-    private String tipoDocumento;
-    private String nomeTipoDocumento;
+    private String documentType;
+    private String documentTypeName;
 
     // =========================================================================
     // CENTRO DE CUSTO
     // =========================================================================
-    private String codCentroCusto;
-    private String nomeCentroCusto;
+    private String costCenterCode;
+    private String costCenterName;
 
     // =========================================================================
     // SUBCENTRO DE CUSTO
     // =========================================================================
-    private String codSubcentroCusto;
-    private String nomeSubcentroCusto;
+    private String subCostCenterCode;
+    private String subCostCenterName;
 
     // =========================================================================
     // PLANO DE CONTA
     // =========================================================================
-    private String planoConta;
-    private String nomePlanoConta;
+    private String accountPlan;
+    private String accountPlanName;
 
     // =========================================================================
     // SETOR E CONTRATO
     // =========================================================================
-    private String codSetor;
-    private String contrato;
+    private String departmentCode;
+    private String contract;
 
     // =========================================================================
     // DATAS
     // =========================================================================
-    private LocalDateTime dataEmissao;
-    private LocalDateTime dataVencimento;
-    private LocalDateTime dataEntrada;
-    private LocalDateTime dataCadastro;
-    private LocalDateTime dataAlteracao;
+    private LocalDateTime emissionDate;
+    private LocalDateTime dueDate;
+    private LocalDateTime entryDate;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     // =========================================================================
     // VALORES
     // =========================================================================
-    private BigDecimal valorTitulo;
-    private BigDecimal valorPago;
-    private BigDecimal valorSaldo;
-    private BigDecimal valorBruto;
-    private BigDecimal valorDesconto;
-    private BigDecimal valorAcrescimo;
-    private BigDecimal valorMovimento;
-    private BigDecimal valorOutras;
-    private BigDecimal atualizacaoMonetaria;
+    private BigDecimal titleValue;
+    private BigDecimal paidValue;
+    private BigDecimal balanceValue;
+    private BigDecimal grossValue;
+    private BigDecimal discountValue;
+    private BigDecimal surchargeValue;
+    private BigDecimal movementValue;
+    private BigDecimal otherValues;
+    private BigDecimal monetaryCorrection;
 
     // =========================================================================
     // FLAGS
     // =========================================================================
-    private Boolean isPagoTotal;
-    private Boolean isProvisao;
+    private Boolean isFullyPaid;
+    private Boolean isProvision;
 
     // =========================================================================
     // CLASSIFICAÇÃO
     // =========================================================================
-    private String situacaoTitulo;
-    private String tipoTitulo;
-    private String operacao;
-    private String formaPagamento;
-    private String opcaoPagamento;
+    private String titleStatus;
+    private String titleType;
+    private String operation;
+    private String paymentMethod;
+    private String paymentOption;
 
     // =========================================================================
     // PARCELA / COMPETÊNCIA
     // =========================================================================
-    private String numeroParcela;
-    private String mesCompetencia;
-    private String periodo;
-    private String periodoApuracao;
-    private String periodoReferencia;
-    private Integer anoCalculo;
-    private Integer diasAtraso;
+    private String installmentNumber;
+    private String referenceMonth;
+    private String period;
+    private String assessmentPeriod;
+    private String referencePeriod;
+    private Integer calculationYear;
+    private Integer daysOverdue;
 
     // =========================================================================
     // TEXTO / HISTÓRICO
     // =========================================================================
-    private String historico;
-    private String observacao;
+    private String description;
+    private String notes;
 
     // =========================================================================
     // FISCAL
     // =========================================================================
-    private String documentoContribuinte;
-    private String inscricaoEstadual;
-    private String codMunicipio;
-    private String uf;
+    private String taxpayerDocument;
+    private String stateRegistration;
+    private String cityCode;
+    private String state;
 
     // =========================================================================
     // AUDITORIA
     // =========================================================================
-    private Integer contadorPagamento;
-    private String operadorCadastro;
-    private String operadorAlteracao;
+    private Integer paymentCounter;
+    private String createdBy;
+    private String updatedBy;
 
     // =========================================================================
     // METADADOS

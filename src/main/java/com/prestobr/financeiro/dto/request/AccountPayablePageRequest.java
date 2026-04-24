@@ -15,12 +15,12 @@ public record AccountPayablePageRequest(
         String titleCode,
 
         @Schema(description = "Código da empresa")
-        String codEmpresa,
+        String companyCode,
 
         @Schema(description = "Código do fornecedor")
         String vendorCode,
 
-        @Schema(description = "Código do prestador")
+        @Schema(description = "Código do providerCode")
         String providerCode,
 
         @Schema(description = "Número da parcela")
@@ -82,8 +82,8 @@ public record AccountPayablePageRequest(
         Integer size,
 
         @Schema(
-                description = "Campos de ordenação. Formato: campo,direção. Campos: dataEmissao, dataVencimento, dataEntrada, dataCadastro, dataAlteracao, valorTitulo, numeroParcela, diasAtraso. Direções: asc, desc",
-                example = "[\"dataEmissao,asc\", \"valorTitulo,desc\"]"
+                description = "Campos de ordenação. Formato: campo,direção. Campos: emissionDate, dueDate, entryDate, createdAt, updatedAt, titleValue, installmentNumber, daysOverdue. Direções: asc, desc",
+                example = "[\"emissionDate,asc\", \"titleValue,desc\"]"
         )
         List<String> sort
 ) {
