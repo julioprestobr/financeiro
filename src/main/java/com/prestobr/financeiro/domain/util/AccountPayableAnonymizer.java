@@ -35,10 +35,16 @@ public class AccountPayableAnonymizer {
                 // Transportador
                 .transportador(generateCode("TRA"))
                 .nomeTransportador(anonymizeText("Transportador"))
+                .fantasiaTransportador(anonymizeText("Fantasia"))
+                .cnpjTransportador(anonymizeCnpj())
+                .cpfTransportador(anonymizeCpf())
 
                 // Prestador
                 .prestador(generateCode("PRE"))
                 .nomePrestador(anonymizeText("Prestador"))
+                .fantasiaPrestador(anonymizeText("Fantasia"))
+                .cnpjPrestador(anonymizeCnpj())
+                .cpfPrestador(anonymizeCpf())
 
                 // Status - mantém código, anonimiza nome
                 .statusPagamento(original.getStatusPagamento())
