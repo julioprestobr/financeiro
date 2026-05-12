@@ -15,19 +15,11 @@ public class ClientConfig {
     @Value("${s3.bucket-name}")
     private String bucketName;
 
-    @Value("${datalake.gold-account-payable-base-prefix}")
-    private String goldAccountPayableBasePrefix;
-
     // ==================== DATALAKE CLIENT ====================
 
     @Bean
     public DataLakeClient dataLakeClient(S3Client s3Client) {
-
-        return new DataLakeClient(
-                s3Client,
-                bucketName,
-                goldAccountPayableBasePrefix
-        );
+        return new DataLakeClient(s3Client, bucketName);
     }
 
 }

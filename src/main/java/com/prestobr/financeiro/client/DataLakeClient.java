@@ -23,20 +23,10 @@ public class DataLakeClient {
 
     private final S3Client s3Client;
     private final String bucketName;
-    private final String goldAccountPayableBasePrefix;
 
-    public DataLakeClient(
-            S3Client s3Client,
-            String bucketName,
-            String goldAccountPayableBasePrefix
-    ) {
+    public DataLakeClient(S3Client s3Client, String bucketName) {
         this.s3Client = s3Client;
         this.bucketName = bucketName;
-        this.goldAccountPayableBasePrefix = goldAccountPayableBasePrefix;
-    }
-
-    public List<String> findLatestRunParquetKeys() {
-        return findLatestRunParquetKeysFromPrefix(goldAccountPayableBasePrefix);
     }
 
     // =========================================================================
@@ -132,9 +122,5 @@ public class DataLakeClient {
 
     public String getBucketName() {
         return bucketName;
-    }
-
-    public String getGoldAccountPayableBasePrefix() {
-        return goldAccountPayableBasePrefix;
     }
 }
