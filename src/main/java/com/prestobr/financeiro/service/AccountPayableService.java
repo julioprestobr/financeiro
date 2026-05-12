@@ -48,6 +48,9 @@ public class AccountPayableService {
     @Value("${financeiro.account-payable.anonymize-data:false}")
     private boolean anonymizeData;
 
+    @Value("${datalake.gold-account-payable-base-prefix}")
+    private String goldAccountPayableBasePrefix;
+
     public AccountPayableService(DataLakeClient dataLakeClient, ApplicationContext applicationContext) {
         this.dataLakeClient = dataLakeClient;
         this.applicationContext = applicationContext;
@@ -92,7 +95,7 @@ public class AccountPayableService {
 
     @Cacheable("accounts-payable")
     public List<AccountPayable> loadAll() {
-        List<String> latestRunKeys = dataLakeClient.findLatestRunParquetKeys();
+        List<String> latestRunKeys = dataLakeClient.findLatestRunParquetKeysFromPrefix(goldAccountPayableBasePrefix);
 
         if (latestRunKeys.isEmpty()) {
             log.warn("Nenhum arquivo Parquet encontrado no Data Lake Gold");
