@@ -1,10 +1,8 @@
 package com.prestobr.financeiro.controller.v1;
 
 import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
-import com.prestobr.financeiro.dto.request.QueryRequest;
 import com.prestobr.financeiro.dto.response.AccountPayableResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
-import com.prestobr.financeiro.dto.response.QueryResponse;
 import com.prestobr.financeiro.service.AccountPayableService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -46,9 +44,4 @@ public class AccountPayableController {
         return "Cache limpo";
     }
 
-    @PostMapping("/query")
-    @Operation(summary = "Executa query dinâmica no Data Lake")
-    public QueryResponse query(@RequestBody QueryRequest request) {
-        return accountPayableService.executeQuery(request.getQuery());
-    }
 }
