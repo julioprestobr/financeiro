@@ -56,14 +56,15 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
         log.info("=== GatewayAuthFilter: path={}, secret present={}", path, secret != null);
 
         if (!isValidGatewaySecret(secret)) {
-            log.warn("=== Invalid secret! Received: {}, Expected: {}", secret, gatewaySecret);
+            log.warn("Request rejected — invalid or missing gateway secret [path={}]", path);
             sendUnauthorizedResponse(response);
             return;
         }
 
         log.info("=== Secret valid, configuring security context");
         try {
-            configureSecurityContext(request);
+            configureSecurityContext(request, response);
+            if (response.isCommitted()) return;
             filterChain.doFilter(request, response);
         } finally {
             SecurityContextHolder.clearContext();
@@ -81,26 +82,25 @@ public class GatewayAuthFilter extends OncePerRequestFilter {
         return secret != null && secret.equals(gatewaySecret);
     }
 
-    private void configureSecurityContext(HttpServletRequest request) {
+    private void configureSecurityContext(HttpServletRequest request,
+                                          HttpServletResponse response) throws IOException {
         String userId = request.getHeader(USER_ID_HEADER);
         String roles = request.getHeader(USER_ROLES_HEADER);
 
-        if (userId != null) {
-
-            List<SimpleGrantedAuthority> authorities = parseRoles(roles);
-
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(userId, null, authorities);
-
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-        } else {
-            List<SimpleGrantedAuthority> authorities = List.of(
-                    new SimpleGrantedAuthority("ROLE_ADMIN")
+        if (userId == null) {
+            log.warn("Request with valid gateway secret but missing X-User-Id — rejecting");
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json");
+            response.getWriter().write(
+                    "{\"error\": \"Forbidden\", \"message\": \"Missing user context\"}"
             );
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken("system", null, authorities);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            return;
         }
+
+        List<SimpleGrantedAuthority> authorities = parseRoles(roles);
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(userId, null, authorities);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 
     private List<SimpleGrantedAuthority> parseRoles(String roles) {
