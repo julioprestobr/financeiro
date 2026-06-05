@@ -139,6 +139,7 @@ public class QueryService {
             try {
                 log.info("Warming up cache for: {}", s3Path);
                 getOrCreateConnection(s3Path);
+                log.info("Warmup completed for: {}", s3Path);
             } catch (Exception e) {
                 log.error("Failed to warmup {}: {}", s3Path, e.getMessage());
             }
