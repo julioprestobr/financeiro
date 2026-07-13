@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
@@ -59,32 +60,22 @@ public class ParquetUtils {
             Object value = record.get(field);
             if (value == null) return null;
 
-            // pega schema do campo
-            Schema.Field schemaField = record.getSchema().getField(field);
-            if (schemaField == null) return null;
-
-            Schema fieldSchema = schemaField.schema();
-
-            // trata union (nullable)
-            if (fieldSchema.getType() == Schema.Type.UNION) {
-                for (Schema s : fieldSchema.getTypes()) {
-                    if (s.getType() != Schema.Type.NULL) {
-                        fieldSchema = s;
-                        break;
-                    }
-                }
+            // valor numérico simples (ex: campo Parquet do tipo double/float/int/long, sem logical type decimal)
+            if (value instanceof Number number && !(value instanceof GenericData.Fixed)) {
+                return new BigDecimal(number.toString());
             }
 
-            // pega logical type
-            LogicalTypes.Decimal decimalType =
-                    (LogicalTypes.Decimal) fieldSchema.getLogicalType();
+            // decimal com logical type (FIXED ou BYTES) — precisa da escala declarada no schema
+            if (value instanceof GenericData.Fixed || value instanceof ByteBuffer) {
+                int scale = getDecimalScale(record, field);
 
-            int scale = decimalType.getScale();
+                byte[] bytes = value instanceof GenericData.Fixed fixed
+                        ? fixed.bytes()
+                        : toByteArray((ByteBuffer) value);
 
-            // converte FIXED
-            if (value instanceof GenericData.Fixed fixed) {
-                byte[] bytes = fixed.bytes();
-                return new BigDecimal(new BigInteger(bytes), scale);
+                return bytes.length == 0
+                        ? BigDecimal.ZERO.setScale(scale)
+                        : new BigDecimal(new BigInteger(bytes), scale);
             }
 
             return new BigDecimal(value.toString());
@@ -92,6 +83,30 @@ public class ParquetUtils {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static int getDecimalScale(GenericRecord record, String field) {
+        Schema.Field schemaField = record.getSchema().getField(field);
+        Schema fieldSchema = schemaField.schema();
+
+        // trata union (nullable)
+        if (fieldSchema.getType() == Schema.Type.UNION) {
+            for (Schema s : fieldSchema.getTypes()) {
+                if (s.getType() != Schema.Type.NULL) {
+                    fieldSchema = s;
+                    break;
+                }
+            }
+        }
+
+        LogicalTypes.Decimal decimalType = (LogicalTypes.Decimal) fieldSchema.getLogicalType();
+        return decimalType.getScale();
+    }
+
+    private static byte[] toByteArray(ByteBuffer buffer) {
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.duplicate().get(bytes);
+        return bytes;
     }
 
     public static Boolean getBoolean(GenericRecord record, String field) {
@@ -124,6 +139,30 @@ public class ParquetUtils {
             return null;
         } catch (Exception e) {
             log.trace("Erro ao converter campo {} para LocalDateTime: {}", field, e.getMessage());
+            return null;
+        }
+    }
+
+    public static LocalDate getLocalDate(GenericRecord record, String field) {
+        try {
+            Object value = record.get(field);
+            if (value == null) return null;
+
+            if (value instanceof Integer) {
+                return LocalDate.ofEpochDay((Integer) value);
+            }
+
+            if (value instanceof Long) {
+                return LocalDate.ofEpochDay((Long) value);
+            }
+
+            if (value instanceof CharSequence) {
+                return LocalDate.parse(value.toString());
+            }
+
+            return null;
+        } catch (Exception e) {
+            log.trace("Erro ao converter campo {} para LocalDate: {}", field, e.getMessage());
             return null;
         }
     }
