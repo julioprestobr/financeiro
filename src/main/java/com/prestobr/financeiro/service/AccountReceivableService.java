@@ -1,6 +1,6 @@
 package com.prestobr.financeiro.service;
 
-import com.prestobr.financeiro.client.DataLakeClient;
+import com.prestobr.financeiro.client.AthenaQueryClient;
 import com.prestobr.financeiro.domain.entity.AccountReceivable;
 import com.prestobr.financeiro.domain.util.AccountReceivableAnonymizer;
 import com.prestobr.financeiro.dto.request.AccountReceivablePageRequest;
@@ -8,12 +8,6 @@ import com.prestobr.financeiro.dto.response.AccountReceivableResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import org.apache.parquet.avro.AvroParquetReader;
-import org.apache.parquet.hadoop.ParquetReader;
-import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -27,27 +21,26 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.prestobr.financeiro.util.ParquetUtils.*;
+import static com.prestobr.financeiro.util.AthenaResultUtils.*;
 
 @Slf4j
 @Service
 public class AccountReceivableService {
 
-    private final DataLakeClient dataLakeClient;
+    private final AthenaQueryClient athenaQueryClient;
     private final ApplicationContext applicationContext;
 
     @Value("${financeiro.account-receivable.anonymize-data:false}")
     private boolean anonymizeData;
 
-    @Value("${datalake.gold-account-receivable-base-prefix}")
-    private String goldAccountReceivableBasePrefix;
+    @Value("${athena.table.account-receivable}")
+    private String accountReceivableTable;
 
-    public AccountReceivableService(DataLakeClient dataLakeClient, ApplicationContext applicationContext) {
-        this.dataLakeClient = dataLakeClient;
+    public AccountReceivableService(AthenaQueryClient athenaQueryClient, ApplicationContext applicationContext) {
+        this.athenaQueryClient = athenaQueryClient;
         this.applicationContext = applicationContext;
     }
 
@@ -90,61 +83,23 @@ public class AccountReceivableService {
 
     @Cacheable("accounts-receivable")
     public List<AccountReceivable> loadAll() {
-        List<String> latestRunKeys = dataLakeClient.findLatestRunParquetKeysFromPrefix(goldAccountReceivableBasePrefix);
+        List<Map<String, String>> rows = athenaQueryClient.runQuery("SELECT * FROM " + accountReceivableTable);
 
-        if (latestRunKeys.isEmpty()) {
-            log.warn("Nenhum arquivo Parquet encontrado no Data Lake Gold");
+        if (rows.isEmpty()) {
+            log.warn("Nenhum registro encontrado na tabela Athena: {}", accountReceivableTable);
             return Collections.emptyList();
         }
 
-        log.info("Encontrados {} arquivos Parquet na run mais recente (Gold)", latestRunKeys.size());
+        log.info("Encontrados {} registros via Athena ({})", rows.size(), accountReceivableTable);
 
-        List<AccountReceivable> all = new ArrayList<>();
-        for (String key : latestRunKeys) {
-            all.addAll(readParquetFile(key));
-        }
-
-        return all;
-    }
-
-    private List<AccountReceivable> readParquetFile(String s3Key) {
-        List<AccountReceivable> accounts = new ArrayList<>();
-        File tempFile = null;
-
-        try {
-            tempFile = dataLakeClient.downloadToTempFile(s3Key);
-
-            Configuration hadoopConf = new Configuration();
-            Path parquetPath = new Path(tempFile.getAbsolutePath());
-
-            try (ParquetReader<GenericRecord> reader = AvroParquetReader
-                    .<GenericRecord>builder(HadoopInputFile.fromPath(parquetPath, hadoopConf))
-                    .build()) {
-
-                GenericRecord record;
-                while ((record = reader.read()) != null) {
-                    accounts.add(mapToEntity(record));
-                }
-            }
-
-            log.debug("Lidos {} registros de {}", accounts.size(), s3Key);
-
-        } catch (Exception e) {
-            log.error("Erro ao ler arquivo Parquet {}: {}", s3Key, e.getMessage(), e);
-        } finally {
-            if (tempFile != null && tempFile.exists()) {
-                tempFile.delete();
-            }
-        }
-
-        return accounts;
+        return rows.stream().map(this::mapToEntity).collect(Collectors.toList());
     }
 
     // =========================================================================
-    // MAPEAMENTO PARQUET -> ENTITY
+    // MAPEAMENTO ATHENA -> ENTITY
     // =========================================================================
 
-    private AccountReceivable mapToEntity(GenericRecord record) {
+    private AccountReceivable mapToEntity(Map<String, String> record) {
         AccountReceivable original = AccountReceivable.builder()
                 // Identificação
                 .titleCode(getString(record, "codigo_titulo"))
