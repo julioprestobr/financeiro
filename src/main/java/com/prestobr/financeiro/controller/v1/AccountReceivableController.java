@@ -29,11 +29,11 @@ public class AccountReceivableController {
         return accountReceivableService.search(request);
     }
 
-    @GetMapping("/title/{titleCode}")
+    @GetMapping("/title")
     @Operation(summary = "Busca uma conta a receber pelo código do título")
     public AccountReceivableResponse getByCodigoTitulo(
             @Parameter(description = "Código do título")
-            @PathVariable("titleCode") String codigoTitulo) {
+            @RequestParam("codigo") String codigoTitulo) {
         return accountReceivableService.getByCodigoTitulo(codigoTitulo);
     }
 
