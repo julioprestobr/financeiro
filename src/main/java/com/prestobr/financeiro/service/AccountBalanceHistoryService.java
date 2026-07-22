@@ -1,305 +1,203 @@
 package com.prestobr.financeiro.service;
 
-import com.prestobr.financeiro.client.DataLakeClient;
 import com.prestobr.financeiro.domain.entity.AccountBalanceHistory;
 import com.prestobr.financeiro.domain.util.AccountBalanceHistoryAnonymizer;
 import com.prestobr.financeiro.dto.request.AccountBalanceHistoryPageRequest;
 import com.prestobr.financeiro.dto.response.AccountBalanceHistoryResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import org.apache.parquet.avro.AvroParquetReader;
-import org.apache.parquet.hadoop.ParquetReader;
-import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.ApplicationContext;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
-import java.io.File;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static com.prestobr.financeiro.util.ParquetUtils.*;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AccountBalanceHistoryService {
 
-    private final DataLakeClient dataLakeClient;
-    private final ApplicationContext applicationContext;
+    private static final String TABLE = "historico_saldo";
+
+    private static final Map<String, String> SORTABLE_COLUMNS = Map.of(
+            "referenceDate", "data",
+            "accumulatedBalance", "saldo_acumulado",
+            "dailyCredits", "creditos_dia",
+            "dailyDebits", "debitos_dia",
+            "netDailyMovement", "movimento_liquido_dia"
+    );
+
+    private static final RowMapper<AccountBalanceHistory> ROW_MAPPER = (rs, rowNum) -> AccountBalanceHistory.builder()
+            .accountCode(rs.getString("cod_conta"))
+            .accountName(rs.getString("nome_conta"))
+            .bankCode(rs.getString("cod_banco"))
+            .companyCode(rs.getString("cod_empresa"))
+            .companyName(rs.getString("nome_empresa"))
+            .referenceDate(getLocalDate(rs, "data"))
+            .dayOfWeek(getInteger(rs, "dia_semana"))
+            .isBusinessDay(getBoolean(rs, "is_dia_util"))
+            .dailyCredits(rs.getBigDecimal("creditos_dia"))
+            .dailyDebits(rs.getBigDecimal("debitos_dia"))
+            .netDailyMovement(rs.getBigDecimal("movimento_liquido_dia"))
+            .dailyMovementCount(getInteger(rs, "qtd_movimentos_dia"))
+            .accumulatedBalance(rs.getBigDecimal("saldo_acumulado"))
+            .snapshotDatetime(getLocalDateTime(rs, "snapshot_datetime"))
+            .build();
+
+    private final JdbcTemplate dataLakeJdbcTemplate;
 
     @Value("${financeiro.account-balance-history.anonymize-data:false}")
     private boolean anonymizeData;
-
-    @Value("${datalake.gold-account-balance-history-base-prefix}")
-    private String goldAccountBalanceHistoryBasePrefix;
-
-    public AccountBalanceHistoryService(DataLakeClient dataLakeClient, ApplicationContext applicationContext) {
-        this.dataLakeClient = dataLakeClient;
-        this.applicationContext = applicationContext;
-    }
-
-    private AccountBalanceHistoryService self() {
-        return applicationContext.getBean(AccountBalanceHistoryService.class);
-    }
 
     // =========================================================================
     // ENDPOINTS PÚBLICOS
     // =========================================================================
 
     public PageResponse<AccountBalanceHistoryResponse> search(AccountBalanceHistoryPageRequest request) {
-        Pageable pageable = buildPageable(request);
-        List<AccountBalanceHistory> filtered = self().loadAll().stream()
-                .filter(balance -> matchesFilters(balance, request))
-                .collect(Collectors.toList());
+        WhereClause where = buildWhereClause(request);
+        long total = countTotal(where);
 
-        return toPageResponse(toPage(filtered, pageable));
-    }
+        String sql = "SELECT * FROM " + TABLE
+                + where.sql()
+                + buildOrderBy(request.sort())
+                + " LIMIT ? OFFSET ?";
 
-    public AccountBalanceHistoryResponse getByAccountAndDate(String accountCode, LocalDate referenceDate) {
-        return self().loadAll().stream()
-                .filter(balance -> accountCode.equals(balance.getAccountCode())
-                        && referenceDate.equals(balance.getReferenceDate()))
-                .findFirst()
+        List<Object> params = new ArrayList<>(where.params());
+        params.add(request.size());
+        params.add(request.page() * request.size());
+
+        List<AccountBalanceHistoryResponse> content = dataLakeJdbcTemplate.query(sql, ROW_MAPPER, params.toArray())
+                .stream()
+                .map(this::applyAnonymization)
                 .map(AccountBalanceHistoryResponse::from)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Saldo não encontrado para conta " + accountCode + " na data " + referenceDate
-                ));
+                .toList();
+
+        int totalPages = (int) Math.ceil((double) total / request.size());
+        return new PageResponse<>(new Pagination(request.page(), request.size(), total, totalPages), content);
     }
 
-    @CacheEvict(value = "accounts-balance-history", allEntries = true)
+    public List<AccountBalanceHistoryResponse> getByAccountCode(String accountCode) {
+        String sql = "SELECT * FROM " + TABLE + " WHERE cod_conta = ? ORDER BY data ASC";
+
+        return dataLakeJdbcTemplate.query(sql, ROW_MAPPER, accountCode)
+                .stream()
+                .map(this::applyAnonymization)
+                .map(AccountBalanceHistoryResponse::from)
+                .toList();
+    }
+
     public void clearCache() {
-        log.info("Cache de histórico de saldo limpo");
+        log.info("Histórico de saldo é consultado diretamente no banco, não há cache em memória a limpar");
     }
 
     // =========================================================================
-    // CARREGAMENTO DE DADOS
+    // FILTROS (WHERE dinâmico)
     // =========================================================================
 
-    @Cacheable("accounts-balance-history")
-    public List<AccountBalanceHistory> loadAll() {
-        List<String> latestRunKeys = dataLakeClient.findLatestRunParquetKeysFromPrefix(goldAccountBalanceHistoryBasePrefix);
+    private WhereClause buildWhereClause(AccountBalanceHistoryPageRequest request) {
+        List<String> conditions = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
 
-        if (latestRunKeys.isEmpty()) {
-            log.warn("Nenhum arquivo Parquet encontrado no Data Lake Gold");
-            return Collections.emptyList();
+        if (request.accountCode() != null) {
+            conditions.add("cod_conta = ?");
+            params.add(request.accountCode());
+        }
+        if (request.companyCode() != null) {
+            conditions.add("cod_empresa = ?");
+            params.add(request.companyCode());
+        }
+        if (request.bankCode() != null) {
+            conditions.add("cod_banco = ?");
+            params.add(request.bankCode());
+        }
+        if (request.isBusinessDay() != null) {
+            conditions.add("is_dia_util = ?");
+            params.add(request.isBusinessDay());
+        }
+        if (request.referenceDateFrom() != null) {
+            conditions.add("data >= ?");
+            params.add(request.referenceDateFrom());
+        }
+        if (request.referenceDateTo() != null) {
+            conditions.add("data <= ?");
+            params.add(request.referenceDateTo());
         }
 
-        log.info("Encontrados {} arquivos Parquet na run mais recente (Gold)", latestRunKeys.size());
-
-        List<AccountBalanceHistory> all = new ArrayList<>();
-        for (String key : latestRunKeys) {
-            all.addAll(readParquetFile(key));
-        }
-
-        return all;
+        String sql = conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions);
+        return new WhereClause(sql, params);
     }
 
-    private List<AccountBalanceHistory> readParquetFile(String s3Key) {
-        List<AccountBalanceHistory> balances = new ArrayList<>();
-        File tempFile = null;
+    private long countTotal(WhereClause where) {
+        String sql = "SELECT count(*) FROM " + TABLE + where.sql();
+        Long total = dataLakeJdbcTemplate.queryForObject(sql, Long.class, where.params().toArray());
+        return total == null ? 0 : total;
+    }
 
-        try {
-            tempFile = dataLakeClient.downloadToTempFile(s3Key);
+    // =========================================================================
+    // ORDENAÇÃO
+    // =========================================================================
 
-            Configuration hadoopConf = new Configuration();
-            Path parquetPath = new Path(tempFile.getAbsolutePath());
+    private String buildOrderBy(List<String> sort) {
+        if (sort == null || sort.isEmpty()) {
+            return "";
+        }
 
-            try (ParquetReader<GenericRecord> reader = AvroParquetReader
-                    .<GenericRecord>builder(HadoopInputFile.fromPath(parquetPath, hadoopConf))
-                    .build()) {
-
-                GenericRecord record;
-                while ((record = reader.read()) != null) {
-                    balances.add(mapToEntity(record));
-                }
+        List<String> orders = new ArrayList<>();
+        for (String s : sort) {
+            String[] parts = s.split(",");
+            String column = SORTABLE_COLUMNS.get(parts[0]);
+            if (column == null) {
+                continue;
             }
-
-            log.debug("Lidos {} registros de {}", balances.size(), s3Key);
-
-        } catch (Exception e) {
-            log.error("Erro ao ler arquivo Parquet {}: {}", s3Key, e.getMessage(), e);
-        } finally {
-            if (tempFile != null && tempFile.exists()) {
-                tempFile.delete();
-            }
+            String direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1]) ? "DESC" : "ASC";
+            orders.add(column + " " + direction);
         }
 
-        return balances;
+        return orders.isEmpty() ? "" : " ORDER BY " + String.join(", ", orders);
     }
 
     // =========================================================================
-    // MAPEAMENTO PARQUET -> ENTITY
+    // ANONIMIZAÇÃO
     // =========================================================================
 
-    private AccountBalanceHistory mapToEntity(GenericRecord record) {
-        AccountBalanceHistory original = AccountBalanceHistory.builder()
-                // Conta Bancária
-                .accountCode(getString(record, "cod_conta"))
-                .accountName(getString(record, "nome_conta"))
-                .bankCode(getString(record, "cod_banco"))
-
-                // Empresa
-                .companyCode(getString(record, "cod_empresa"))
-                .companyName(getString(record, "nome_empresa"))
-
-                // Data
-                .referenceDate(getLocalDate(record, "data"))
-                .dayOfWeek(getInteger(record, "dia_semana"))
-                .isBusinessDay(getBoolean(record, "is_dia_util"))
-
-                // Movimento do dia
-                .dailyCredits(getBigDecimal(record, "creditos_dia"))
-                .dailyDebits(getBigDecimal(record, "debitos_dia"))
-                .netDailyMovement(getBigDecimal(record, "movimento_liquido_dia"))
-                .dailyMovementCount(getInteger(record, "qtd_movimentos_dia"))
-
-                // Saldo
-                .accumulatedBalance(getBigDecimal(record, "saldo_acumulado"))
-
-                // Metadados
-                .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
-                .build();
-
+    private AccountBalanceHistory applyAnonymization(AccountBalanceHistory accountBalanceHistory) {
         return anonymizeData
-                ? AccountBalanceHistoryAnonymizer.anonymize(original)
-                : original;
+                ? AccountBalanceHistoryAnonymizer.anonymize(accountBalanceHistory)
+                : accountBalanceHistory;
     }
 
     // =========================================================================
-    // FILTROS
+    // MAPEAMENTO RESULTSET -> ENTITY
     // =========================================================================
 
-    private boolean matchesFilters(AccountBalanceHistory balance, AccountBalanceHistoryPageRequest request) {
-        if (request.accountCode() != null && !request.accountCode().equals(balance.getAccountCode())) {
-            return false;
-        }
-
-        if (request.companyCode() != null && !request.companyCode().equals(balance.getCompanyCode())) {
-            return false;
-        }
-
-        if (request.bankCode() != null && !request.bankCode().equals(balance.getBankCode())) {
-            return false;
-        }
-
-        if (request.isBusinessDay() != null && !request.isBusinessDay().equals(balance.getIsBusinessDay())) {
-            return false;
-        }
-
-        if (request.referenceDateFrom() != null && balance.getReferenceDate() != null) {
-            if (balance.getReferenceDate().isBefore(request.referenceDateFrom())) {
-                return false;
-            }
-        }
-
-        if (request.referenceDateTo() != null && balance.getReferenceDate() != null) {
-            if (balance.getReferenceDate().isAfter(request.referenceDateTo())) {
-                return false;
-            }
-        }
-
-        return true;
+    private static Integer getInteger(ResultSet rs, String column) throws SQLException {
+        int value = rs.getInt(column);
+        return rs.wasNull() ? null : value;
     }
 
-    // =========================================================================
-    // PAGINAÇÃO E ORDENAÇÃO
-    // =========================================================================
-
-    private Pageable buildPageable(AccountBalanceHistoryPageRequest request) {
-        if (request.sort() == null || request.sort().isEmpty()) {
-            return PageRequest.of(request.page(), request.size());
-        }
-
-        List<Sort.Order> orders = request.sort().stream()
-                .map(s -> {
-                    String[] parts = s.split(",");
-                    String field = parts[0];
-                    Sort.Direction direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1])
-                            ? Sort.Direction.DESC
-                            : Sort.Direction.ASC;
-                    return new Sort.Order(direction, field);
-                })
-                .toList();
-
-        return PageRequest.of(request.page(), request.size(), Sort.by(orders));
+    private static Boolean getBoolean(ResultSet rs, String column) throws SQLException {
+        boolean value = rs.getBoolean(column);
+        return rs.wasNull() ? null : value;
     }
 
-    private List<AccountBalanceHistory> applySorting(List<AccountBalanceHistory> list, Sort sort) {
-        if (sort.isUnsorted()) {
-            return list;
-        }
-
-        Comparator<AccountBalanceHistory> comparator = null;
-
-        for (Sort.Order order : sort) {
-            Comparator<AccountBalanceHistory> fieldComparator = getComparator(order.getProperty());
-
-            if (fieldComparator != null) {
-                if (order.isDescending()) {
-                    fieldComparator = fieldComparator.reversed();
-                }
-                comparator = (comparator == null) ? fieldComparator : comparator.thenComparing(fieldComparator);
-            }
-        }
-
-        if (comparator == null) {
-            return list;
-        }
-
-        return list.stream().sorted(comparator).collect(Collectors.toList());
+    private static LocalDate getLocalDate(ResultSet rs, String column) throws SQLException {
+        var date = rs.getDate(column);
+        return date == null ? null : date.toLocalDate();
     }
 
-    private Comparator<AccountBalanceHistory> getComparator(String field) {
-        return switch (field) {
-            case "referenceDate" -> Comparator.comparing(AccountBalanceHistory::getReferenceDate, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "accumulatedBalance" -> Comparator.comparing(AccountBalanceHistory::getAccumulatedBalance, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dailyCredits" -> Comparator.comparing(AccountBalanceHistory::getDailyCredits, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dailyDebits" -> Comparator.comparing(AccountBalanceHistory::getDailyDebits, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "netDailyMovement" -> Comparator.comparing(AccountBalanceHistory::getNetDailyMovement, Comparator.nullsLast(Comparator.naturalOrder()));
-            default -> null;
-        };
+    private static LocalDateTime getLocalDateTime(ResultSet rs, String column) throws SQLException {
+        var timestamp = rs.getTimestamp(column);
+        return timestamp == null ? null : timestamp.toLocalDateTime();
     }
 
-    private Page<AccountBalanceHistory> toPage(List<AccountBalanceHistory> list, Pageable pageable) {
-        List<AccountBalanceHistory> sorted = applySorting(list, pageable.getSort());
-
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), sorted.size());
-        if (start > sorted.size()) {
-            return new PageImpl<>(Collections.emptyList(), pageable, sorted.size());
-        }
-        return new PageImpl<>(sorted.subList(start, end), pageable, sorted.size());
-    }
-
-    private PageResponse<AccountBalanceHistoryResponse> toPageResponse(Page<AccountBalanceHistory> page) {
-        List<AccountBalanceHistoryResponse> content = page.getContent().stream()
-                .map(AccountBalanceHistoryResponse::from)
-                .toList();
-
-        return new PageResponse<>(
-                new Pagination(
-                        page.getNumber(),
-                        page.getSize(),
-                        page.getTotalElements(),
-                        page.getTotalPages()
-                ),
-                content
-        );
-    }
-
+    private record WhereClause(String sql, List<Object> params) {}
 }

@@ -29,11 +29,11 @@ public class AccountPayableController {
         return accountPayableService.search(request);
     }
 
-    @GetMapping("/title/{titleCode}")
+    @GetMapping("/title")
     @Operation(summary = "Busca uma conta a pagar pelo código do título")
     public AccountPayableResponse getByCodigoTitulo(
             @Parameter(description = "Código do título")
-            @PathVariable("titleCode") String codigoTitulo) {
+            @RequestParam("codigo") String codigoTitulo) {
         return accountPayableService.getByCodigoTitulo(codigoTitulo);
     }
 

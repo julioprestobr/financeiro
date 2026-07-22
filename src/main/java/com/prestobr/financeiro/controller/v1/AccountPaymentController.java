@@ -29,11 +29,11 @@ public class AccountPaymentController {
         return accountPaymentService.search(request);
     }
 
-    @GetMapping("/document/{documentNumber}")
+    @GetMapping("/document")
     @Operation(summary = "Busca um pagamento pelo número do documento")
     public AccountPaymentResponse getByNumeroDocumento(
             @Parameter(description = "Número do documento")
-            @PathVariable("documentNumber") String numeroDocumento) {
+            @RequestParam("numero") String numeroDocumento) {
         return accountPaymentService.getByNumeroDocumento(numeroDocumento);
     }
 
