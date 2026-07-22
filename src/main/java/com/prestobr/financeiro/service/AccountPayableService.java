@@ -1,77 +1,156 @@
 package com.prestobr.financeiro.service;
 
-import com.prestobr.financeiro.client.DataLakeClient;
 import com.prestobr.financeiro.domain.entity.AccountPayable;
 import com.prestobr.financeiro.domain.util.AccountPayableAnonymizer;
 import com.prestobr.financeiro.dto.request.AccountPayablePageRequest;
 import com.prestobr.financeiro.dto.response.AccountPayableResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import org.apache.parquet.avro.AvroParquetReader;
-import org.apache.parquet.hadoop.ParquetReader;
-import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.ApplicationContext;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.File;
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static com.prestobr.financeiro.util.ParquetUtils.*;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AccountPayableService {
 
-    private final DataLakeClient dataLakeClient;
-    private final ApplicationContext applicationContext;
+    private static final String TABLE = "cp_titulos_enriquecidos";
+
+    private static final Map<String, String> SORTABLE_COLUMNS = Map.of(
+            "emissionDate", "data_emissao",
+            "dueDate", "data_vencimento",
+            "entryDate", "data_entrada",
+            "createdAt", "data_cadastro",
+            "updatedAt", "data_alteracao",
+            "titleValue", "valor_titulo",
+            "installmentNumber", "numero_parcela",
+            "daysOverdue", "dias_atraso"
+    );
+
+    private static final RowMapper<AccountPayable> ROW_MAPPER = (rs, rowNum) -> AccountPayable.builder()
+            .titleCode(rs.getString("codigo_titulo"))
+            .purchaseCode(rs.getString("codigo_compra"))
+            .companyCode(rs.getString("cod_empresa"))
+            .companyName(rs.getString("nome_empresa"))
+            .vendorCode(rs.getString("cod_fornecedor"))
+            .vendorName(rs.getString("nome_fornecedor"))
+            .vendorTradeName(rs.getString("fantasia_fornecedor"))
+            .vendorCnpj(rs.getString("cnpj_fornecedor"))
+            .vendorCpf(rs.getString("cpf_fornecedor"))
+            .carrierCode(rs.getString("transportador"))
+            .carrierName(rs.getString("nome_transportador"))
+            .carrierTradeName(rs.getString("fantasia_transportador"))
+            .carrierCnpj(rs.getString("cnpj_transportador"))
+            .carrierCpf(rs.getString("cpf_transportador"))
+            .providerCode(rs.getString("prestador"))
+            .providerName(rs.getString("nome_prestador"))
+            .providerTradeName(rs.getString("fantasia_prestador"))
+            .providerCnpj(rs.getString("cnpj_prestador"))
+            .providerCpf(rs.getString("cpf_prestador"))
+            .paymentStatus(rs.getString("status_pagamento"))
+            .statusName(rs.getString("nome_status"))
+            .documentType(rs.getString("tipo_documento"))
+            .documentTypeName(rs.getString("nome_tipo_documento"))
+            .costCenterCode(rs.getString("cod_centro_custo"))
+            .costCenterName(rs.getString("nome_centro_custo"))
+            .subCostCenterCode(rs.getString("cod_subcentro_custo"))
+            .subCostCenterName(rs.getString("nome_subcentro_custo"))
+            .accountPlan(rs.getString("plano_conta"))
+            .accountPlanName(rs.getString("nome_plano_conta"))
+            .departmentCode(rs.getString("cod_setor"))
+            .contract(rs.getString("contrato"))
+            .emissionDate(getLocalDateTime(rs, "data_emissao"))
+            .dueDate(getLocalDateTime(rs, "data_vencimento"))
+            .entryDate(getLocalDateTime(rs, "data_entrada"))
+            .createdAt(getLocalDateTime(rs, "data_cadastro"))
+            .updatedAt(getLocalDateTime(rs, "data_alteracao"))
+            .titleValue(rs.getBigDecimal("valor_titulo"))
+            .paidValue(rs.getBigDecimal("valor_pago"))
+            .balanceValue(rs.getBigDecimal("valor_saldo"))
+            .grossValue(rs.getBigDecimal("valor_bruto"))
+            .discountValue(rs.getBigDecimal("valor_desconto"))
+            .surchargeValue(rs.getBigDecimal("valor_acrescimo"))
+            .movementValue(rs.getBigDecimal("valor_movimento"))
+            .otherValues(rs.getBigDecimal("valor_outras"))
+            .monetaryCorrection(rs.getBigDecimal("atualizacao_monetaria"))
+            .isFullyPaid(getBoolean(rs, "is_pago_total"))
+            .isProvision(getBoolean(rs, "is_provisao"))
+            .titleStatus(rs.getString("situacao_titulo"))
+            .titleType(rs.getString("tipo_titulo"))
+            .operation(rs.getString("operacao"))
+            .paymentMethod(rs.getString("forma_pagamento"))
+            .paymentOption(rs.getString("opcao_pagamento"))
+            .installmentNumber(rs.getString("numero_parcela"))
+            .referenceMonth(rs.getString("mes_competencia"))
+            .period(rs.getString("periodo"))
+            .assessmentPeriod(rs.getString("periodo_apuracao"))
+            .referencePeriod(rs.getString("periodo_referencia"))
+            .calculationYear(getIntegerFromText(rs, "ano_calculo"))
+            .daysOverdue(getInteger(rs, "dias_atraso"))
+            .description(rs.getString("historico"))
+            .notes(rs.getString("observacao"))
+            .taxpayerDocument(rs.getString("documento_contribuinte"))
+            .stateRegistration(rs.getString("inscricao_estadual"))
+            .cityCode(rs.getString("cod_municipio"))
+            .state(rs.getString("uf"))
+            .paymentCounter(getInteger(rs, "contador_pagamento"))
+            .createdBy(rs.getString("operador_cadastro"))
+            .updatedBy(rs.getString("operador_alteracao"))
+            .snapshotDatetime(getLocalDateTime(rs, "snapshot_datetime"))
+            .build();
+
+    private final JdbcTemplate dataLakeJdbcTemplate;
 
     @Value("${financeiro.account-payable.anonymize-data:false}")
     private boolean anonymizeData;
-
-    @Value("${datalake.gold-account-payable-base-prefix}")
-    private String goldAccountPayableBasePrefix;
-
-    public AccountPayableService(DataLakeClient dataLakeClient, ApplicationContext applicationContext) {
-        this.dataLakeClient = dataLakeClient;
-        this.applicationContext = applicationContext;
-    }
-
-    private AccountPayableService self() {
-        return applicationContext.getBean(AccountPayableService.class);
-    }
 
     // =========================================================================
     // ENDPOINTS PÚBLICOS
     // =========================================================================
 
     public PageResponse<AccountPayableResponse> search(AccountPayablePageRequest request) {
-        Pageable pageable = buildPageable(request);
-        List<AccountPayable> filtered = self().loadAll().stream()
-                .filter(ap -> matchesFilters(ap, request))
-                .collect(Collectors.toList());
+        WhereClause where = buildWhereClause(request);
+        long total = countTotal(where);
 
-        return toPageResponse(toPage(filtered, pageable));
+        String sql = "SELECT * FROM " + TABLE
+                + where.sql()
+                + buildOrderBy(request.sort())
+                + " LIMIT ? OFFSET ?";
+
+        List<Object> params = new ArrayList<>(where.params());
+        params.add(request.size());
+        params.add(request.page() * request.size());
+
+        List<AccountPayableResponse> content = dataLakeJdbcTemplate.query(sql, ROW_MAPPER, params.toArray())
+                .stream()
+                .map(this::applyAnonymization)
+                .map(AccountPayableResponse::from)
+                .toList();
+
+        int totalPages = (int) Math.ceil((double) total / request.size());
+        return new PageResponse<>(new Pagination(request.page(), request.size(), total, totalPages), content);
     }
 
     public AccountPayableResponse getByCodigoTitulo(String codigoTitulo) {
-        return self().loadAll().stream()
-                .filter(ap -> codigoTitulo.equals(ap.getTitleCode()))
+        String sql = "SELECT * FROM " + TABLE + " WHERE codigo_titulo = ?";
+
+        return dataLakeJdbcTemplate.query(sql, ROW_MAPPER, codigoTitulo)
+                .stream()
                 .findFirst()
+                .map(this::applyAnonymization)
                 .map(AccountPayableResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -79,380 +158,178 @@ public class AccountPayableService {
                 ));
     }
 
-    @CacheEvict(value = "accounts-payable", allEntries = true)
     public void clearCache() {
-        log.info("Cache de contas a pagar limpo");
+        log.info("Contas a pagar são consultadas diretamente no banco, não há cache em memória a limpar");
     }
 
     // =========================================================================
-    // CARREGAMENTO DE DADOS
+    // FILTROS (WHERE dinâmico)
     // =========================================================================
 
-    @Cacheable("accounts-payable")
-    public List<AccountPayable> loadAll() {
-        List<String> latestRunKeys = dataLakeClient.findLatestRunParquetKeysFromPrefix(goldAccountPayableBasePrefix);
+    private WhereClause buildWhereClause(AccountPayablePageRequest request) {
+        List<String> conditions = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
 
-        if (latestRunKeys.isEmpty()) {
-            log.warn("Nenhum arquivo Parquet encontrado no Data Lake Gold");
-            return Collections.emptyList();
+        if ("PENDING".equalsIgnoreCase(request.paymentStatus())) {
+            conditions.add("COALESCE(is_pago_total, false) = false");
+        } else if ("PAID".equalsIgnoreCase(request.paymentStatus())) {
+            conditions.add("is_pago_total = true");
         }
 
-        log.info("Encontrados {} arquivos Parquet na run mais recente (Gold)", latestRunKeys.size());
-
-        List<AccountPayable> all = new ArrayList<>();
-        for (String key : latestRunKeys) {
-            all.addAll(readParquetFile(key));
+        if (request.titleCode() != null) {
+            conditions.add("codigo_titulo = ?");
+            params.add(request.titleCode());
+        }
+        if (request.purchaseCode() != null) {
+            conditions.add("codigo_compra = ?");
+            params.add(request.purchaseCode());
+        }
+        if (request.companyCode() != null) {
+            conditions.add("cod_empresa = ?");
+            params.add(request.companyCode());
+        }
+        if (request.vendorCode() != null) {
+            conditions.add("cod_fornecedor = ?");
+            params.add(request.vendorCode());
+        }
+        if (request.providerCode() != null) {
+            conditions.add("prestador = ?");
+            params.add(request.providerCode());
+        }
+        if (request.installmentNumber() != null) {
+            conditions.add("numero_parcela = ?");
+            params.add(request.installmentNumber());
+        }
+        if (request.costCenterCode() != null) {
+            conditions.add("cod_centro_custo = ?");
+            params.add(request.costCenterCode());
+        }
+        if (request.subCostCenterCode() != null) {
+            conditions.add("cod_subcentro_custo = ?");
+            params.add(request.subCostCenterCode());
+        }
+        if (request.departmentCode() != null) {
+            conditions.add("cod_setor = ?");
+            params.add(request.departmentCode());
+        }
+        if (request.accountPlan() != null) {
+            conditions.add("plano_conta = ?");
+            params.add(request.accountPlan());
+        }
+        if (request.description() != null) {
+            conditions.add("historico ILIKE ?");
+            params.add("%" + request.description() + "%");
+        }
+        if (request.documentType() != null) {
+            conditions.add("tipo_documento = ?");
+            params.add(request.documentType());
+        }
+        if (request.titleType() != null) {
+            conditions.add("CAST(tipo_titulo AS TEXT) = ?");
+            params.add(request.titleType());
+        }
+        if (request.operation() != null) {
+            conditions.add("operacao = ?");
+            params.add(request.operation());
+        }
+        if (request.paymentMethod() != null) {
+            conditions.add("forma_pagamento = ?");
+            params.add(request.paymentMethod());
+        }
+        if (request.paymentOption() != null) {
+            conditions.add("opcao_pagamento = ?");
+            params.add(request.paymentOption());
+        }
+        if (request.emissionDateFrom() != null) {
+            conditions.add("CAST(data_emissao AS DATE) >= ?");
+            params.add(request.emissionDateFrom());
+        }
+        if (request.emissionDateTo() != null) {
+            conditions.add("CAST(data_emissao AS DATE) <= ?");
+            params.add(request.emissionDateTo());
+        }
+        if (request.dueDateFrom() != null) {
+            conditions.add("CAST(data_vencimento AS DATE) >= ?");
+            params.add(request.dueDateFrom());
+        }
+        if (request.dueDateTo() != null) {
+            conditions.add("CAST(data_vencimento AS DATE) <= ?");
+            params.add(request.dueDateTo());
         }
 
-        return all;
+        String sql = conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions);
+        return new WhereClause(sql, params);
     }
 
-    private List<AccountPayable> readParquetFile(String s3Key) {
-        List<AccountPayable> accounts = new ArrayList<>();
-        File tempFile = null;
+    private long countTotal(WhereClause where) {
+        String sql = "SELECT count(*) FROM " + TABLE + where.sql();
+        Long total = dataLakeJdbcTemplate.queryForObject(sql, Long.class, where.params().toArray());
+        return total == null ? 0 : total;
+    }
 
-        try {
-            tempFile = dataLakeClient.downloadToTempFile(s3Key);
+    // =========================================================================
+    // ORDENAÇÃO
+    // =========================================================================
 
-            Configuration hadoopConf = new Configuration();
-            Path parquetPath = new Path(tempFile.getAbsolutePath());
+    private String buildOrderBy(List<String> sort) {
+        if (sort == null || sort.isEmpty()) {
+            return "";
+        }
 
-            try (ParquetReader<GenericRecord> reader = AvroParquetReader
-                    .<GenericRecord>builder(HadoopInputFile.fromPath(parquetPath, hadoopConf))
-                    .build()) {
-
-                GenericRecord record;
-                while ((record = reader.read()) != null) {
-                    accounts.add(mapToEntity(record));
-                }
+        List<String> orders = new ArrayList<>();
+        for (String s : sort) {
+            String[] parts = s.split(",");
+            String column = SORTABLE_COLUMNS.get(parts[0]);
+            if (column == null) {
+                continue;
             }
-
-            log.debug("Lidos {} registros de {}", accounts.size(), s3Key);
-
-        } catch (Exception e) {
-            log.error("Erro ao ler arquivo Parquet {}: {}", s3Key, e.getMessage(), e);
-        } finally {
-            if (tempFile != null && tempFile.exists()) {
-                tempFile.delete();
-            }
+            String direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1]) ? "DESC" : "ASC";
+            orders.add(column + " " + direction);
         }
 
-        return accounts;
+        return orders.isEmpty() ? "" : " ORDER BY " + String.join(", ", orders);
     }
 
     // =========================================================================
-    // MAPEAMENTO PARQUET -> ENTITY
+    // ANONIMIZAÇÃO
     // =========================================================================
 
-    private AccountPayable mapToEntity(GenericRecord record) {
-        Object raw = record.get("valor_titulo");
-
-        System.out.println("VALOR_TITULO RAW: " + raw);
-        System.out.println("TIPO: " + (raw != null ? raw.getClass() : "null"));
-
-        AccountPayable original = AccountPayable.builder()
-                // Identificação
-                .titleCode(getString(record, "codigo_titulo"))
-                .purchaseCode(getString(record, "codigo_compra"))
-
-                // Empresa
-                .companyCode(getString(record, "cod_empresa"))
-                .companyName(getString(record, "nome_empresa"))
-
-                // Fornecedor
-                .vendorCode(getString(record, "cod_fornecedor"))
-                .vendorName(getString(record, "nome_fornecedor"))
-                .vendorTradeName(getString(record, "fantasia_fornecedor"))
-                .vendorCnpj(getString(record, "cnpj_fornecedor"))
-                .vendorCpf(getString(record, "cpf_fornecedor"))
-
-                // Transportador
-                .carrierCode(getString(record, "carrierCode"))
-                .carrierName(getString(record, "nome_transportador"))
-                .carrierTradeName(getString(record, "fantasia_transportador"))
-                .carrierCnpj(getString(record, "cnpj_transportador"))
-                .carrierCpf(getString(record, "cpf_transportador"))
-
-                // Prestador
-                .providerCode(getString(record, "providerCode"))
-                .providerName(getString(record, "nome_prestador"))
-                .providerTradeName(getString(record, "fantasia_prestador"))
-                .providerCnpj(getString(record, "cnpj_prestador"))
-                .providerCpf(getString(record, "cpf_prestador"))
-
-                // Status
-                .paymentStatus(getString(record, "status_pagamento"))
-                .statusName(getString(record, "nome_status"))
-
-                // Tipo Documento
-                .documentType(getString(record, "tipo_documento"))
-                .documentTypeName(getString(record, "nome_tipo_documento"))
-
-                // Centro de Custo
-                .costCenterCode(getString(record, "cod_centro_custo"))
-                .costCenterName(getString(record, "nome_centro_custo"))
-
-                // Subcentro de Custo
-                .subCostCenterCode(getString(record, "cod_subcentro_custo"))
-                .subCostCenterName(getString(record, "nome_subcentro_custo"))
-
-                // Plano de Conta
-                .accountPlan(getString(record, "plano_conta"))
-                .accountPlanName(getString(record, "nome_plano_conta"))
-
-                // Setor e Contrato
-                .departmentCode(getString(record, "cod_setor"))
-                .contract(getString(record, "contract"))
-
-                // Datas
-                .emissionDate(getLocalDateTime(record, "data_emissao"))
-                .dueDate(getLocalDateTime(record, "data_vencimento"))
-                .entryDate(getLocalDateTime(record, "data_entrada"))
-                .createdAt(getLocalDateTime(record, "data_cadastro"))
-                .updatedAt(getLocalDateTime(record, "data_alteracao"))
-
-                // Valores
-                .titleValue(getBigDecimal(record, "valor_titulo"))
-                .paidValue(getBigDecimal(record, "valor_pago"))
-                .balanceValue(getBigDecimal(record, "valor_saldo"))
-                .grossValue(getBigDecimal(record, "valor_bruto"))
-                .discountValue(getBigDecimal(record, "valor_desconto"))
-                .surchargeValue(getBigDecimal(record, "valor_acrescimo"))
-                .movementValue(getBigDecimal(record, "valor_movimento"))
-                .otherValues(getBigDecimal(record, "valor_outras"))
-                .monetaryCorrection(getBigDecimal(record, "atualizacao_monetaria"))
-
-                // Flags
-                .isFullyPaid(getBoolean(record, "is_pago_total"))
-                .isProvision(getBoolean(record, "is_provisao"))
-
-                // Classificação
-                .titleStatus(getString(record, "situacao_titulo"))
-                .titleType(getString(record, "tipo_titulo"))
-                .operation(getString(record, "operation"))
-                .paymentMethod(getString(record, "forma_pagamento"))
-                .paymentOption(getString(record, "opcao_pagamento"))
-
-                // Parcela / Competência
-                .installmentNumber(getString(record, "numero_parcela"))
-                .referenceMonth(getString(record, "mes_competencia"))
-                .period(getString(record, "period"))
-                .assessmentPeriod(getString(record, "periodo_apuracao"))
-                .referencePeriod(getString(record, "periodo_referencia"))
-                .calculationYear(getInteger(record, "ano_calculo"))
-                .daysOverdue(getInteger(record, "dias_atraso"))
-
-                // Texto / Histórico
-                .description(getString(record, "description"))
-                .notes(getString(record, "notes"))
-
-                // Fiscal
-                .taxpayerDocument(getString(record, "documento_contribuinte"))
-                .stateRegistration(getString(record, "inscricao_estadual"))
-                .cityCode(getString(record, "cod_municipio"))
-                .state(getString(record, "state"))
-
-                // Auditoria
-                .paymentCounter(getInteger(record, "contador_pagamento"))
-                .createdBy(getString(record, "operador_cadastro"))
-                .updatedBy(getString(record, "operador_alteracao"))
-
-                // Metadados
-                .snapshotDatetime(getLocalDateTime(record, "snapshot_datetime"))
-                .build();
-
+    private AccountPayable applyAnonymization(AccountPayable accountPayable) {
         return anonymizeData
-                ? AccountPayableAnonymizer.anonymize(original)
-                : original;
+                ? AccountPayableAnonymizer.anonymize(accountPayable)
+                : accountPayable;
     }
 
     // =========================================================================
-    // FILTROS
+    // MAPEAMENTO RESULTSET -> ENTITY
     // =========================================================================
 
-    private boolean matchesFilters(AccountPayable ap, AccountPayablePageRequest request) {
-        if ("PENDING".equalsIgnoreCase(request.paymentStatus()) && Boolean.TRUE.equals(ap.getIsFullyPaid())) {
-            return false;
-        }
-        if ("PAID".equalsIgnoreCase(request.paymentStatus()) && !Boolean.TRUE.equals(ap.getIsFullyPaid())) {
-            return false;
-        }
-
-        if (request.titleCode() != null && !request.titleCode().equals(ap.getTitleCode())) {
-            return false;
-        }
-
-        if (request.purchaseCode() != null && !request.purchaseCode().equals(ap.getPurchaseCode())){
-            return false;
-        }
-
-        if (request.vendorCode() != null && !request.vendorCode().equals(ap.getVendorCode())) {
-            return false;
-        }
-
-        if (request.providerCode() != null && !request.providerCode().equals(ap.getProviderCode())) {
-            return false;
-        }
-
-        if (request.installmentNumber() != null && !request.installmentNumber().equals(ap.getInstallmentNumber())) {
-            return false;
-        }
-
-        if (request.costCenterCode() != null && !request.costCenterCode().equals(ap.getCostCenterCode())) {
-            return false;
-        }
-
-        if (request.subCostCenterCode() != null && !request.subCostCenterCode().equals(ap.getSubCostCenterCode())) {
-            return false;
-        }
-
-        if (request.departmentCode() != null && !request.departmentCode().equals(ap.getDepartmentCode())) {
-            return false;
-        }
-
-        if (request.accountPlan() != null && !request.accountPlan().equals(ap.getAccountPlan())) {
-            return false;
-        }
-
-        if (request.description() != null && ap.getDescription() != null
-                && !ap.getDescription().toLowerCase().contains(request.description().toLowerCase())) {
-            return false;
-        }
-
-        if (request.documentType() != null && !request.documentType().equals(ap.getDocumentType())) {
-            return false;
-        }
-
-        if (request.titleType() != null && !request.titleType().equals(ap.getTitleType())) {
-            return false;
-        }
-
-        if (request.operation() != null && !request.operation().equals(ap.getOperation())) {
-            return false;
-        }
-
-        if (request.paymentMethod() != null && !request.paymentMethod().equals(ap.getPaymentMethod())) {
-            return false;
-        }
-
-        if (request.paymentOption() != null && !request.paymentOption().equals(ap.getPaymentOption())) {
-            return false;
-        }
-
-        if (request.emissionDateFrom() != null && ap.getEmissionDate() != null) {
-            if (ap.getEmissionDate().toLocalDate().isBefore(request.emissionDateFrom())) {
-                return false;
-            }
-        }
-
-        if (request.emissionDateTo() != null && ap.getEmissionDate() != null) {
-            if (ap.getEmissionDate().toLocalDate().isAfter(request.emissionDateTo())) {
-                return false;
-            }
-        }
-
-        if (request.dueDateFrom() != null && ap.getDueDate() != null) {
-            if (ap.getDueDate().toLocalDate().isBefore(request.dueDateFrom())) {
-                return false;
-            }
-        }
-
-        if (request.dueDateTo() != null && ap.getDueDate() != null) {
-            if (ap.getDueDate().toLocalDate().isAfter(request.dueDateTo())) {
-                return false;
-            }
-        }
-
-        return true;
+    private static Integer getInteger(ResultSet rs, String column) throws SQLException {
+        int value = rs.getInt(column);
+        return rs.wasNull() ? null : value;
     }
 
-    // =========================================================================
-    // PAGINAÇÃO E ORDENAÇÃO
-    // =========================================================================
-
-    private Pageable buildPageable(AccountPayablePageRequest request) {
-        if (request.sort() == null || request.sort().isEmpty()) {
-            return PageRequest.of(request.page(), request.size());
+    private static Integer getIntegerFromText(ResultSet rs, String column) throws SQLException {
+        String value = rs.getString(column);
+        if (value == null || value.isBlank()) {
+            return null;
         }
-
-        List<Sort.Order> orders = request.sort().stream()
-                .map(s -> {
-                    String[] parts = s.split(",");
-                    String field = parts[0];
-                    Sort.Direction direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1])
-                            ? Sort.Direction.DESC
-                            : Sort.Direction.ASC;
-                    return new Sort.Order(direction, field);
-                })
-                .toList();
-
-        return PageRequest.of(request.page(), request.size(), Sort.by(orders));
+        try {
+            return Integer.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
-    private List<AccountPayable> applySorting(List<AccountPayable> list, Sort sort) {
-        if (sort.isUnsorted()) {
-            return list;
-        }
-
-        Comparator<AccountPayable> comparator = null;
-
-        for (Sort.Order order : sort) {
-            Comparator<AccountPayable> fieldComparator = getComparator(order.getProperty());
-
-            if (fieldComparator != null) {
-                if (order.isDescending()) {
-                    fieldComparator = fieldComparator.reversed();
-                }
-                comparator = (comparator == null) ? fieldComparator : comparator.thenComparing(fieldComparator);
-            }
-        }
-
-        if (comparator == null) {
-            return list;
-        }
-
-        return list.stream().sorted(comparator).collect(Collectors.toList());
+    private static Boolean getBoolean(ResultSet rs, String column) throws SQLException {
+        boolean value = rs.getBoolean(column);
+        return rs.wasNull() ? null : value;
     }
 
-    private Comparator<AccountPayable> getComparator(String field) {
-        return switch (field) {
-            case "emissionDate" -> Comparator.comparing(AccountPayable::getEmissionDate, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "dueDate" -> Comparator.comparing(AccountPayable::getDueDate, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "entryDate" -> Comparator.comparing(AccountPayable::getEntryDate, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "createdAt" -> Comparator.comparing(AccountPayable::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "updatedAt" -> Comparator.comparing(AccountPayable::getUpdatedAt, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "titleValue" -> Comparator.comparing(AccountPayable::getTitleValue, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "installmentNumber" -> Comparator.comparing(AccountPayable::getInstallmentNumber, Comparator.nullsLast(Comparator.naturalOrder()));
-            case "daysOverdue" -> Comparator.comparing(AccountPayable::getDaysOverdue, Comparator.nullsLast(Comparator.naturalOrder()));
-            default -> null;
-        };
+    private static LocalDateTime getLocalDateTime(ResultSet rs, String column) throws SQLException {
+        var timestamp = rs.getTimestamp(column);
+        return timestamp == null ? null : timestamp.toLocalDateTime();
     }
 
-    private Page<AccountPayable> toPage(List<AccountPayable> list, Pageable pageable) {
-        List<AccountPayable> sorted = applySorting(list, pageable.getSort());
-
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), sorted.size());
-        if (start > sorted.size()) {
-            return new PageImpl<>(Collections.emptyList(), pageable, sorted.size());
-        }
-        return new PageImpl<>(sorted.subList(start, end), pageable, sorted.size());
-    }
-
-    private PageResponse<AccountPayableResponse> toPageResponse(Page<AccountPayable> page) {
-        List<AccountPayableResponse> content = page.getContent().stream()
-                .map(AccountPayableResponse::from)
-                .toList();
-
-        return new PageResponse<>(
-                new Pagination(
-                        page.getNumber(),
-                        page.getSize(),
-                        page.getTotalElements(),
-                        page.getTotalPages()
-                ),
-                content
-        );
-    }
-
+    private record WhereClause(String sql, List<Object> params) {}
 }

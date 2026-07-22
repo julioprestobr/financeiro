@@ -8,10 +8,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/v1/account-balance-history")
@@ -32,14 +31,12 @@ public class AccountBalanceHistoryController {
         return accountBalanceHistoryService.search(request);
     }
 
-    @GetMapping("/account/{accountCode}/date/{referenceDate}")
-    @Operation(summary = "Busca o saldo de uma conta em uma data específica")
-    public AccountBalanceHistoryResponse getByAccountAndDate(
+    @GetMapping("/account/{accountCode}")
+    @Operation(summary = "Busca o histórico de saldo de uma conta")
+    public List<AccountBalanceHistoryResponse> getByAccountCode(
             @Parameter(description = "Código da conta bancária")
-            @PathVariable("accountCode") String accountCode,
-            @Parameter(description = "Data de referência", example = "2026-01-01")
-            @PathVariable("referenceDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate referenceDate) {
-        return accountBalanceHistoryService.getByAccountAndDate(accountCode, referenceDate);
+            @PathVariable("accountCode") String accountCode) {
+        return accountBalanceHistoryService.getByAccountCode(accountCode);
     }
 
     @DeleteMapping("/cache")
