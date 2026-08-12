@@ -7,7 +7,6 @@ import com.prestobr.financeiro.dto.response.AccountReceivableResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccountReceivableService {
@@ -148,10 +146,6 @@ public class AccountReceivableService {
                         HttpStatus.NOT_FOUND,
                         "Título não encontrado: " + codigoTitulo
                 ));
-    }
-
-    public void clearCache() {
-        log.info("Contas a receber são consultadas diretamente no banco, não há cache em memória a limpar");
     }
 
     // =========================================================================

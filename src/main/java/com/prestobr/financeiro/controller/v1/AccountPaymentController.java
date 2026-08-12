@@ -37,11 +37,4 @@ public class AccountPaymentController {
         return accountPaymentService.getByNumeroDocumento(numeroDocumento);
     }
 
-    @DeleteMapping("/cache")
-    @Operation(summary = "Limpa o cache de pagamentos")
-    public String clearCache() {
-        accountPaymentService.clearCache();
-        return "Cache limpo";
-    }
-
 }

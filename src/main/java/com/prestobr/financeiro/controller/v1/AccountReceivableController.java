@@ -37,11 +37,4 @@ public class AccountReceivableController {
         return accountReceivableService.getByCodigoTitulo(codigoTitulo);
     }
 
-    @DeleteMapping("/cache")
-    @Operation(summary = "Limpa o cache de contas a receber")
-    public String clearCache() {
-        accountReceivableService.clearCache();
-        return "Cache limpo";
-    }
-
 }

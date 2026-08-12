@@ -6,7 +6,6 @@ import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
 import com.prestobr.financeiro.dto.response.ProductStockResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
@@ -19,7 +18,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductStockService {
@@ -122,10 +120,6 @@ public class ProductStockService {
                 .stream()
                 .map(ProductStockResponse::from)
                 .toList();
-    }
-
-    public void clearCache() {
-        log.info("Estoque de produto é consultado diretamente no banco, não há cache em memória a limpar");
     }
 
     // =========================================================================
