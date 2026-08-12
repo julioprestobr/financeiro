@@ -39,11 +39,4 @@ public class ProductStockController {
         return productStockService.getByCodigoProduto(codigoProduto);
     }
 
-    @DeleteMapping("/cache")
-    @Operation(summary = "Limpa o cache de estoque de produto")
-    public String clearCache() {
-        productStockService.clearCache();
-        return "Cache limpo";
-    }
-
 }

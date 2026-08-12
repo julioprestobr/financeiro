@@ -37,11 +37,4 @@ public class AccountReceiptController {
         return accountReceiptService.getByNumeroDocumento(numeroDocumento);
     }
 
-    @DeleteMapping("/cache")
-    @Operation(summary = "Limpa o cache de recebimentos")
-    public String clearCache() {
-        accountReceiptService.clearCache();
-        return "Cache limpo";
-    }
-
 }

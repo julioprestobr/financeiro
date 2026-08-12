@@ -39,11 +39,4 @@ public class AccountBalanceHistoryController {
         return accountBalanceHistoryService.getByAccountCode(accountCode);
     }
 
-    @DeleteMapping("/cache")
-    @Operation(summary = "Limpa o cache de histórico de saldo")
-    public String clearCache() {
-        accountBalanceHistoryService.clearCache();
-        return "Cache limpo";
-    }
-
 }
