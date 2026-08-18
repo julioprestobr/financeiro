@@ -7,7 +7,6 @@ import com.prestobr.financeiro.dto.response.AccountBalanceHistoryResponse;
 import com.prestobr.financeiro.dto.response.PageResponse;
 import com.prestobr.financeiro.dto.response.Pagination;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -21,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccountBalanceHistoryService {
@@ -93,10 +91,6 @@ public class AccountBalanceHistoryService {
                 .map(this::applyAnonymization)
                 .map(AccountBalanceHistoryResponse::from)
                 .toList();
-    }
-
-    public void clearCache() {
-        log.info("Histórico de saldo é consultado diretamente no banco, não há cache em memória a limpar");
     }
 
     // =========================================================================
