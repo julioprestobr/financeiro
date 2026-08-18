@@ -23,8 +23,14 @@ public record AccountPayablePageRequest(
         @Schema(description = "Código do fornecedor")
         String vendorCode,
 
+        @Schema(description = "CNPJ do fornecedor (com ou sem máscara)")
+        String vendorCnpj,
+
         @Schema(description = "Código do providerCode")
         String providerCode,
+
+        @Schema(description = "CNPJ do prestador (com ou sem máscara)")
+        String providerCnpj,
 
         @Schema(description = "Número da parcela")
         String installmentNumber,

@@ -192,9 +192,17 @@ public class AccountPayableService {
             conditions.add("cod_fornecedor = ?");
             params.add(request.vendorCode());
         }
+        if (request.vendorCnpj() != null) {
+            conditions.add("regexp_replace(cnpj_fornecedor, '\\D', '', 'g') = ?");
+            params.add(request.vendorCnpj().replaceAll("\\D", ""));
+        }
         if (request.providerCode() != null) {
             conditions.add("prestador = ?");
             params.add(request.providerCode());
+        }
+        if (request.providerCnpj() != null) {
+            conditions.add("regexp_replace(cnpj_prestador, '\\D', '', 'g') = ?");
+            params.add(request.providerCnpj().replaceAll("\\D", ""));
         }
         if (request.installmentNumber() != null) {
             conditions.add("numero_parcela = ?");
