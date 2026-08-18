@@ -17,6 +17,9 @@ public record AccountReceivablePageRequest(
         @Schema(description = "Código do cliente")
         String clientCode,
 
+        @Schema(description = "CNPJ do cliente (com ou sem máscara)")
+        String clientCnpj,
+
         @Schema(description = "Código do centro de custo")
         String costCenterCode,
 

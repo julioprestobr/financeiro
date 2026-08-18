@@ -168,6 +168,10 @@ public class AccountReceivableService {
             conditions.add("cod_cliente = ?");
             params.add(request.clientCode());
         }
+        if (request.clientCnpj() != null) {
+            conditions.add("regexp_replace(cnpj_cliente, '\\D', '', 'g') = ?");
+            params.add(request.clientCnpj().replaceAll("\\D", ""));
+        }
         if (request.costCenterCode() != null) {
             conditions.add("cod_centro_custo = ?");
             params.add(request.costCenterCode());
