@@ -27,7 +27,7 @@ public record AccountPayableResponse(
                 String carrierCpf,
 
                 String providerCode,
-                String nomePrestador,
+                String providerName,
                 String providerTradeName,
                 String providerCnpj,
                 String providerCpf,
